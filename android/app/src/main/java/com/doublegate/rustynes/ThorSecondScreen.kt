@@ -34,6 +34,8 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import java.lang.ref.WeakReference
+import uniffi.rustynes_mobile.NesController
+import uniffi.rustynes_mobile.RaLoginStatus
 
 /**
  * AYN Thor dual-screen support.
