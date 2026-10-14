@@ -46,7 +46,11 @@ adb shell dumpsys SurfaceFlinger --display-id > "$OUT/sf-displays.txt" 2>&1
 adb shell dumpsys activity activities > "$OUT/activities.txt" 2>&1
 grep -E 'Display #|ActivityRecord.*rustynes' "$OUT/activities.txt" | head -40 | tee -a "$OUT/steps.txt"
 
+sleep 8
+adb pull /sdcard/Android/data/$PKG/files/thor-bottom.png "$OUT/bottom-screen.png" > /dev/null 2>&1 && log "bottom screen snapshot saved" || log "no bottom screen snapshot"
+# Second pass: tap the top screen's dialog away and check again after more play time.
 adb logcat -d > "$OUT/logcat.txt" 2>&1
+grep -E "RustyNES-thor|RustyNES-exp" "$OUT/logcat.txt" | tee "$OUT/thor-log.txt" | head -20 | tee -a "$OUT/steps.txt"
 grep -E "FATAL EXCEPTION|AndroidRuntime|RustyNES" "$OUT/logcat.txt" | head -80 > "$OUT/logcat-app.txt"
 if grep -q "FATAL EXCEPTION" "$OUT/logcat.txt"; then log "RESULT: crash"; else log "RESULT: no crash"; fi
 [ -n "${PID:-}" ] && log "RESULT: process alive" || log "RESULT: process NOT running"
