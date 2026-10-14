@@ -389,6 +389,7 @@ class ThorSecondScreenActivity : androidx.activity.ComponentActivity() {
     private var firstButton: View? = null
     private var launchSeq = 0
     private var panelHintShown = false
+    private var touching = false
     @Volatile private var hasGame = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -550,6 +551,42 @@ class ThorSecondScreenActivity : androidx.activity.ComponentActivity() {
             ThorDualScreen.pickerOpen = false
             false
         }
+    }
+
+    /**
+     * Touching this screen gives it the system focus, which would send Home, Back and
+     * the controller to it instead of the game. Shortly after the last touch the focus
+     * goes back to the game's screen, unless something here still needs keys: the
+     * controller-driven menu, a text field, or a dialog from the top screen.
+     */
+    private val refocusGame = Runnable {
+        val typing = currentFocus is EditText
+        // hasWindowFocus() is false while a dialog or sheet is open over this screen.
+        if (!menuMode && !typing && !touching && started && hasWindowFocus()) {
+            ThorDualScreen.focusGame(this)
+        }
+    }
+
+    /** Focus arrived here (a touch, or a dialog over this screen closed): hand it back soon. */
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        ui.removeCallbacks(refocusGame)
+        if (hasFocus) ui.postDelayed(refocusGame, REFOCUS_MS)
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                touching = true
+                ui.removeCallbacks(refocusGame)
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                touching = false
+                ui.removeCallbacks(refocusGame)
+                ui.postDelayed(refocusGame, REFOCUS_MS)
+            }
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     /** Show the menu; with [byController] the controller drives it (see [dispatchKeyEvent]). */
@@ -791,6 +828,7 @@ class ThorSecondScreenActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun showHome() {
+        if (BuildConfig.DEBUG) Log.i("RustyNES-thor", "menu shown")
         expView.visibility = View.GONE
         expVisible = false
         homeScroll.visibility = View.VISIBLE
@@ -1174,12 +1212,17 @@ class ThorSecondScreenActivity : androidx.activity.ComponentActivity() {
         imm?.hideSoftInputFromWindow(root.windowToken, 0)
         userField.clearFocus()
         passField.clearFocus()
+        ui.removeCallbacks(refocusGame)
+        ui.postDelayed(refocusGame, REFOCUS_MS)
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
 
     companion object {
         const val REQ_IMPORT = 4401
+
+        /** Idle time after the last touch before the game's screen gets the focus back. */
+        const val REFOCUS_MS = 1500L
 
         private val BG = 0xFF1E1F22.toInt()
         private val BTN = 0xFF34363B.toInt()

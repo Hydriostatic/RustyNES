@@ -94,12 +94,19 @@ class ExpansionView(
     private val holdSlop = android.view.ViewConfiguration.get(context).scaledTouchSlop * 2f
     private var holdX = 0f
     private var holdY = 0f
-    private val hold = Runnable { onBackToMenu() }
+    private var holdBroken = true
+    private val hold = Runnable {
+        if (!holdBroken) {
+            holdBroken = true
+            onBackToMenu()
+        }
+    }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                holdBroken = false
                 holdX = event.x
                 holdY = event.y
                 removeCallbacks(hold)
@@ -107,9 +114,29 @@ class ExpansionView(
             }
             MotionEvent.ACTION_MOVE ->
                 if (kotlin.math.abs(event.x - holdX) > holdSlop || kotlin.math.abs(event.y - holdY) > holdSlop) {
+                    holdBroken = true
                     removeCallbacks(hold)
+                } else if (!holdBroken && event.eventTime - event.downTime >= HOLD_MS) {
+                    // Also judged from the touch's own clock, in case the timer was late.
+                    removeCallbacks(hold)
+                    holdBroken = true
+                    onBackToMenu()
                 }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_POINTER_DOWN -> removeCallbacks(hold)
+            MotionEvent.ACTION_UP -> {
+                removeCallbacks(hold)
+                if (!holdBroken && event.eventTime - event.downTime >= HOLD_MS) {
+                    holdBroken = true
+                    onBackToMenu()
+                    return true
+                }
+            }
+            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_POINTER_DOWN -> {
+                holdBroken = true
+                removeCallbacks(hold)
+            }
+        }
+        if (BuildConfig.DEBUG && event.actionMasked != MotionEvent.ACTION_MOVE) {
+            android.util.Log.d("RustyNES-thor", "panel touch ${MotionEvent.actionToString(event.actionMasked)} held=${event.eventTime - event.downTime}ms")
         }
         return gestures.onTouchEvent(event)
     }

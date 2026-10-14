@@ -113,7 +113,7 @@ adb pull /sdcard/Android/data/$PKG/files/thor-bottom.png "$OUT/bottom-screen.png
 # Second pass: tap the top screen's dialog away and check again after more play time.
 # Home: both screens must leave together. (The emulator's simulated second display
 # has no home screen of its own, so Home is pressed on the main display here.)
-adb shell input keyevent KEYCODE_HOME
+adb shell input -d 0 keyevent KEYCODE_HOME
 sleep 5
 adb shell dumpsys activity activities | grep -E "Display #|ResumedActivity|topResumedActivity" > "$OUT/after-home.txt" 2>&1
 if grep -E "ResumedActivity.*rustynes" "$OUT/after-home.txt" > /dev/null; then
@@ -128,7 +128,7 @@ cat "$OUT/focus.txt" | tee -a "$OUT/steps.txt"
 adb logcat -b all -d > "$OUT/logcat.txt" 2>&1
 grep -E "RustyNES-thor|RustyNES-exp" "$OUT/logcat.txt" | tee "$OUT/thor-log.txt" | head -20 | tee -a "$OUT/steps.txt"
 grep -E "FATAL EXCEPTION|AndroidRuntime|RustyNES" "$OUT/logcat.txt" | head -80 > "$OUT/logcat-app.txt"
-grep -E "RA status" "$OUT/logcat.txt" | tee -a "$OUT/steps.txt"
+grep -E "RA status|panel touch|menu shown" "$OUT/logcat.txt" | tee -a "$OUT/steps.txt"
 if grep -q "FATAL EXCEPTION" "$OUT/logcat.txt"; then log "RESULT: crash"; else log "RESULT: no crash"; fi
 if grep -q "am_anr" "$OUT/logcat.txt"; then log "RESULT: ANR"; grep "ANR in" "$OUT/logcat.txt" | head -3 | tee -a "$OUT/steps.txt"; else log "RESULT: no ANR"; fi
 [ -n "${PID:-}" ] && log "RESULT: process alive" || log "RESULT: process NOT running"
