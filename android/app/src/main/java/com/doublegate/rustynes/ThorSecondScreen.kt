@@ -551,7 +551,7 @@ class ThorSecondScreenActivity : Activity() {
         val list = ArrayList<Triple<String, String, Boolean>>()
         val lines = ArrayList<String>()
         if (s == null || !s.raEnabled) {
-            lines += "RetroAchievements is off."
+            lines += "RetroAchievements is off. Sign in below to turn it on."
         } else {
             val mode = if (s.raHardcore) "Hardcore" else "Softcore"
             var stateLine: String? = null
@@ -823,7 +823,8 @@ class ThorSecondScreenActivity : Activity() {
             val s = settings()
             val enabled = s?.raEnabled == true
             val signed = raLoggedIn || (s?.raToken?.isNotEmpty() == true)
-            raLoginBox.visibility = if (enabled && !signed) View.VISIBLE else View.GONE
+            // The sign-in form shows whenever nobody is signed in; signing in turns RA on.
+            raLoginBox.visibility = if (!signed) View.VISIBLE else View.GONE
             raSignedInBox.visibility = if (enabled && signed) View.VISIBLE else View.GONE
             raList.visibility = if (enabled) View.VISIBLE else View.GONE
             if (s != null && userField.text.isEmpty() && s.raUsername.isNotEmpty() && !userField.hasFocus()) {
