@@ -216,8 +216,12 @@ object ThorDualScreen {
         val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager ?: return
         runCatching {
             am.appTasks.firstOrNull { t ->
-                val id = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) t.taskInfo.taskId
-                else @Suppress("DEPRECATION") t.taskInfo.id
+                val info = t.taskInfo
+                val id = when {
+                    info == null -> -1
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> info.taskId
+                    else -> @Suppress("DEPRECATION") info.id
+                }
                 id == m.taskId
             }?.moveToFront()
         }.onFailure { Log.w(TAG, "Couldn't return focus to the game", it) }
