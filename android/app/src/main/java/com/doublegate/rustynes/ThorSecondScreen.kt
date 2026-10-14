@@ -203,9 +203,25 @@ object ThorDualScreen {
     }
 
     /** Forward a hardware key / joystick event that landed on the bottom screen to the game. */
-    fun forwardKey(event: KeyEvent): Boolean = main.get()?.dispatchKeyEvent(event) ?: false
+    fun forwardKey(event: KeyEvent): Boolean = (main.get() as? MainActivity)?.handleForwardedKey(event) ?: false
 
-    fun forwardMotion(event: MotionEvent): Boolean = main.get()?.dispatchGenericMotionEvent(event) ?: false
+    fun forwardMotion(event: MotionEvent): Boolean = (main.get() as? MainActivity)?.handleForwardedMotion(event) ?: false
+
+    /**
+     * Give the input focus back to the game's task (top screen). Opening the bottom
+     * page makes its display the focused one; the game should own the controls.
+     */
+    fun focusGame(ctx: Context) {
+        val m = main.get() ?: return
+        val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager ?: return
+        runCatching {
+            am.appTasks.firstOrNull { t ->
+                val id = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) t.taskInfo.taskId
+                else @Suppress("DEPRECATION") t.taskInfo.id
+                id == m.taskId
+            }?.moveToFront()
+        }.onFailure { Log.w(TAG, "Couldn't return focus to the game", it) }
+    }
 
     /** Export the CPU bus (`$0000-$FFFF`) to Download/RustyNES/ for finding addresses. */
     fun dumpMemory(ctx: Context): String {
@@ -259,13 +275,17 @@ class ThorSecondScreenActivity : Activity() {
     private var sessionStart = SystemClock.elapsedRealtime()
     private var lastRaRefresh = 0L
     private var raSignature = ""
+    private var focusReturned = false
 
     @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ThorDualScreen.bottom = WeakReference(this)
-        // Touch works, but this window never takes the key focus from the game.
-        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // The window must stay focusable: a non-focusable activity makes Android's input
+        // dispatcher wait for a focused window on this display and raise an ANR at the first
+        // key press. Instead, controller input that lands here is forwarded to the game
+        // (dispatchKeyEvent below), and the game's task gets the focus back after launch.
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.decorView.setBackgroundColor(ExpansionView.GRAY)
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
@@ -336,12 +356,22 @@ class ThorSecondScreenActivity : Activity() {
         }
     }
 
+    // Every key except Back (and the system volume keys) belongs to the game: the Thor's
+    // built-in controls must keep playing even after a tap moved the focus down here.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val fromPad = (event.source and InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
-            (event.source and InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK ||
-            (event.source and InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD
-        if (fromPad && ThorDualScreen.forwardKey(event)) return true
+        val local = event.keyCode == KeyEvent.KEYCODE_BACK ||
+            event.keyCode == KeyEvent.KEYCODE_VOLUME_UP || event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN ||
+            event.keyCode == KeyEvent.KEYCODE_VOLUME_MUTE
+        if (!local && ThorDualScreen.forwardKey(event)) return true
         return super.dispatchKeyEvent(event)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!focusReturned) {
+            focusReturned = true
+            ui.postDelayed({ ThorDualScreen.focusGame(this) }, 400)
+        }
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {

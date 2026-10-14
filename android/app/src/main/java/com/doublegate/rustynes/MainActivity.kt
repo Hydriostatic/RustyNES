@@ -500,6 +500,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** AYN Thor: a controller event that reached the bottom-screen window instead of this one. */
+    fun handleForwardedKey(event: KeyEvent): Boolean = when (event.action) {
+        KeyEvent.ACTION_DOWN -> gamepad.onKey(event) || emulator.onKeyboard(event.keyCode, true)
+        KeyEvent.ACTION_UP -> gamepad.onKey(event) || emulator.onKeyboard(event.keyCode, false)
+        else -> false
+    }
+
+    fun handleForwardedMotion(event: MotionEvent): Boolean = gamepad.onMotion(event)
+
     // Hardware gamepad / keyboard: Android dispatches KeyEvents to the Activity.
     // Try the assigned-gamepad path first (device->port + per-pad remap); if the key
     // wasn't from an assigned pad, fall back to the fixed keyboard profile (P1).
