@@ -202,6 +202,18 @@ class MainActivity : AppCompatActivity() {
         // any override and follows the device / per-app system language.
         applyPersistedLocale()
         gamepad = GamepadManager(applicationContext, emulator)
+        // AYN Thor: the bottom screen follows this activity (see ThorSecondScreen.kt).
+        ThorDualScreen.attach(this, emulator)
+        expansionImportLauncher = registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+        ) { uri ->
+            ThorDualScreen.pickerOpen = false
+            if (uri != null) {
+                ThorSecondScreenActivity.importFrom(this, uri) { msg ->
+                    android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }
         registerThermalBackoff()
         // v1.8.8 "Atlas" (Workstreams D+E+L): Play services managers. All are cheap
         // no-op shells when their gates (PGS_ENABLED / PLAY_INTEGRITY_ENABLED) are
@@ -281,6 +293,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** AYN Thor: picker for importing a second-screen expansion (.exp) from the top screen. */
+    private lateinit var expansionImportLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>
+
+    /** Open the system picker for a `.exp` second-screen expansion. */
+    fun importExpansion() {
+        if (!::expansionImportLauncher.isInitialized) return
+        ThorDualScreen.pickerOpen = true
+        runCatching { expansionImportLauncher.launch(arrayOf("*/*")) }
+            .onFailure { ThorDualScreen.pickerOpen = false }
+    }
+
     /** Guards the one-time in-app update check (Workstream L). */
     private var updateChecked = false
 
@@ -293,6 +316,7 @@ class MainActivity : AppCompatActivity() {
     // calls onPause but not onStop, and PiP must keep playing.
     override fun onStop() {
         super.onStop()
+        ThorDualScreen.onMainStop(this)
         if (!emulator.paused) {
             emulator.paused = true
             pausedByStop = true
@@ -301,6 +325,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        ThorDualScreen.onMainStart(this)
         if (pausedByStop) {
             pausedByStop = false
             emulator.paused = false
@@ -329,6 +354,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        ThorDualScreen.detach(this)
         thermalListener?.let {
             (getSystemService(POWER_SERVICE) as android.os.PowerManager).removeThermalStatusListener(it)
         }
@@ -811,6 +837,7 @@ private fun publishRom(
 ): String {
     val outgoingCtrl = emulator.controller
     val outgoingBattery = emulator.battery
+    ThorDualScreen.romName = prepared.name
     emulator.controller = prepared.ctrl
     emulator.romSha = prepared.sha
     emulator.romBytes = prepared.bytes

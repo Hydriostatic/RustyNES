@@ -571,6 +571,28 @@ fun SettingsSheet(
                 TextButton(onClick = onUnloadScript) { Text(stringResource(R.string.settings_unload)) }
             }
 
+            // AYN Thor (dual screen): the bottom-screen page and its `.exp` expansions.
+            // Expansions are data-only panels (values read from the game's memory, drawn
+            // on the 1240x1080 lower screen); see ThorSecondScreen.kt / ThorExpansion.kt.
+            run {
+                val thorCtx = LocalContext.current
+                val thorActivity = ThorDualScreen.findActivity(thorCtx) as? MainActivity
+                var thorOn by remember { mutableStateOf(ThorDualScreen.isEnabled(thorCtx)) }
+                Text("AYN Thor second screen")
+                ToggleRow("Use the bottom screen", thorOn) { on ->
+                    thorOn = on
+                    thorActivity?.let { ThorDualScreen.setEnabled(it, on) }
+                }
+                Text(
+                    if (ThorDualScreen.hasBottomDisplay(thorCtx)) "Bottom screen detected"
+                    else "No second display detected on this device",
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { thorActivity?.importExpansion() }) { Text("Import expansion (.exp)…") }
+                }
+                Text("Installed expansions: ${ExpansionStore.all(thorCtx).size}")
+            }
+
             // RetroAchievements (v1.8.6) — opt-in login + hardcore toggle. The token
             // (never the password) is persisted for a silent re-login. While logged in
             // the user + score are shown with a Log out button; otherwise the login

@@ -123,5 +123,16 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/resume_widget_info" />
         </receiver>
+        <!-- AYN Thor bottom screen (ThorSecondScreen.kt): opened on the second
+             display in its own task while the main activity is visible. -->
+        <activity
+            android:name=".ThorSecondScreenActivity"
+            android:exported="false"
+            android:label="RustyNES"
+            android:taskAffinity="${applicationId}.thorbottom"
+            android:excludeFromRecents="true"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|keyboard|navigation|uiMode|density"
+            android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
     </application>
 </manifest>

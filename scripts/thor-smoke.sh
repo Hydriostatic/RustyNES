@@ -25,10 +25,12 @@ ROM=tests/roms/nes-test-roms/vbl_nmi_timing/1.frame_basics.nes
 adb shell mkdir -p /sdcard/Android/data/$PKG/files
 adb push "$ROM" /sdcard/Android/data/$PKG/files/autoload.nes > /dev/null 2>&1
 # Test expansion that matches the autoload ROM by name.
-if [ -f out/expansions/smoke-test.exp ]; then
-  adb push out/expansions/smoke-test.exp /sdcard/Download/smoke-test.exp > /dev/null 2>&1
-fi
+adb shell mkdir -p /sdcard/Android/data/$PKG/files/expansions
+for e in out/expansions/*.exp; do
+  [ -f "$e" ] && adb push "$e" /sdcard/Android/data/$PKG/files/expansions/ > /dev/null 2>&1 && log "pushed $e"
+done
 
+adb logcat -d | grep -i "RustyNES-thor\|RustyNES-exp" > "$OUT/thor-log-prelaunch.txt" 2>&1
 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 > "$OUT/launch.txt" 2>&1
 log "launched"
 sleep 25
