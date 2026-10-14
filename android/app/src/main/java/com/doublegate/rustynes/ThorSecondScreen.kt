@@ -89,6 +89,25 @@ object ThorDualScreen {
         commands.tryEmit(cmd)
     }
 
+    /** True while the bottom page is on screen: dialogs and pickers then go there. */
+    val bottomActive = androidx.compose.runtime.mutableStateOf(false)
+
+    /** Dialog/sheet content the top screen sends to the bottom one (see ThorPortal). */
+    val portals = androidx.compose.runtime.mutableStateListOf<Pair<Any, @androidx.compose.runtime.Composable () -> Unit>>()
+
+    /** The top screen's Material colors, so the bottom's dialogs match. */
+    val colorScheme = androidx.compose.runtime.mutableStateOf<androidx.compose.material3.ColorScheme?>(null)
+
+    /**
+     * The RetroAchievements account, signed in without needing a game (see
+     * RaAccount in rustynes-mobile). Created on first use; lives for the process.
+     */
+    val raAccount: uniffi.rustynes_mobile.RaAccount by lazy { uniffi.rustynes_mobile.RaAccount() }
+
+    /** Who is signed in to RetroAchievements (null = nobody), as of the last check. */
+    @Volatile
+    var raAccountUser: uniffi.rustynes_mobile.RaUserInfo? = null
+
     var main: WeakReference<Activity> = WeakReference(null)
     var bottom: WeakReference<ThorSecondScreenActivity> = WeakReference(null)
 
@@ -135,9 +154,12 @@ object ThorDualScreen {
     fun findActivity(ctx: Context): Activity? {
         var c: Context? = ctx
         while (c != null) {
-            if (c is Activity) return c
+            if (c is MainActivity) return c
+            if (c is Activity) break
             c = (c as? android.content.ContextWrapper)?.baseContext
         }
+        // Dialogs drawn on the bottom screen have the bottom activity as context;
+        // the actions they need belong to the top one.
         return main.get()
     }
 
@@ -188,6 +210,7 @@ object ThorDualScreen {
 
     fun onMainStart(activity: Activity) {
         mainStarted = true
+        pickerOpen = false
         main = WeakReference(activity)
         show(activity)
     }
@@ -223,6 +246,29 @@ object ThorDualScreen {
 
     fun close() {
         bottom.get()?.let { if (!it.isFinishing) it.finish() }
+    }
+
+    /**
+     * Bring up the menu on the bottom screen (the Menu button, or Start + Select on
+     * the controller). [byController] also hands the controller to the menu: the
+     * D-pad moves, A selects, B or Start + Select goes back to the game.
+     */
+    fun openMenu(byController: Boolean) {
+        val b = bottom.get()
+        if (b == null || b.isFinishing) {
+            main.get()?.let { show(it) }
+            return
+        }
+        b.enterMenu(byController)
+    }
+
+    /**
+     * The user left the app from the bottom screen (Home, Recents, another app):
+     * send the top screen away too, so both screens always go together.
+     */
+    fun leaveTogether() {
+        val m = main.get() ?: return
+        if (!m.isFinishing) runCatching { m.moveTaskToBack(true) }
     }
 
     /** Forward a hardware key / joystick event that landed on the bottom screen to the game. */
@@ -300,7 +346,7 @@ sealed class ThorCommand {
  * audio, emulation, input, RetroAchievements, expansions), or a game's `.exp`
  * panel when one matches the running ROM.
  */
-class ThorSecondScreenActivity : Activity() {
+class ThorSecondScreenActivity : androidx.activity.ComponentActivity() {
 
     private lateinit var root: FrameLayout
     private lateinit var homeScroll: ScrollView
@@ -337,6 +383,12 @@ class ThorSecondScreenActivity : Activity() {
     private var focusReturned = false
 
     @Volatile private var raLoggedIn = false
+    private var started = false
+    /** The controller is driving this menu (Start + Select): keys stay here. */
+    private var menuMode = false
+    private var firstButton: View? = null
+    private var launchSeq = 0
+    private var panelHintShown = false
     @Volatile private var hasGame = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -360,12 +412,35 @@ class ThorSecondScreenActivity : Activity() {
         expView = ExpansionView(
             this,
             onAction = { action -> onExpansionAction(action) },
-            onLongPress = { toast(ThorDualScreen.dumpMemory(this)) },
+            // Double-tap or a 3-second hold on a game panel goes back to the menu.
+            onBackToMenu = {
+                userChoseHome = true
+                showHome()
+            },
         )
         expView.visibility = View.GONE
         root.addView(homeScroll, FrameLayout.LayoutParams(-1, -1))
         root.addView(expView, FrameLayout.LayoutParams(-1, -1))
+        // Dialogs and sheets sent from the top screen (ThorPortal) are drawn by this
+        // composition. They open their own windows, so the view itself stays 1 px.
+        root.addView(
+            androidx.compose.ui.platform.ComposeView(this).apply { setContent { ThorPortalHost() } },
+            FrameLayout.LayoutParams(1, 1),
+        )
         setContentView(root)
+        ThorDualScreen.bottomActive.value = true
+        // Back on a game panel returns to the menu; on the menu it does nothing (this
+        // screen never closes on its own). Dialogs handle Back in their own windows.
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (menuMode) {
+                    leaveMenu()
+                } else if (expView.visibility == View.VISIBLE) {
+                    userChoseHome = true
+                    showHome()
+                }
+            }
+        })
         refreshDynamic()
     }
 
@@ -375,6 +450,7 @@ class ThorSecondScreenActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
+        started = true
         sessionStart = SystemClock.elapsedRealtime()
         val t = HandlerThread("thor-bottom").also { it.start() }
         worker = t
@@ -415,6 +491,18 @@ class ThorSecondScreenActivity : Activity() {
 
     override fun onStop() {
         super.onStop()
+        started = false
+        // Something other than our own pickers covered the bottom screen: if it is still
+        // covered a moment later, the user left from down here, so the top goes too.
+        if (!isChangingConfigurations && !isFinishing && !ThorDualScreen.pickerOpen) {
+            ui.postDelayed({
+                val pm = getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+                val screenOn = pm?.isInteractive != false
+                if (!started && !isFinishing && !ThorDualScreen.pickerOpen && screenOn) {
+                    ThorDualScreen.leaveTogether()
+                }
+            }, 700)
+        }
         workerHandler?.removeCallbacksAndMessages(null)
         worker?.quitSafely()
         worker = null
@@ -423,15 +511,72 @@ class ThorSecondScreenActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (ThorDualScreen.bottom.get() === this) ThorDualScreen.bottom = WeakReference(null)
+        if (ThorDualScreen.bottom.get() === this) {
+            ThorDualScreen.bottom = WeakReference(null)
+            ThorDualScreen.bottomActive.value = false
+        }
     }
 
-    // Back on the bottom screen only goes back to the RustyNES menu; it never closes it.
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (expView.visibility == View.VISIBLE) {
-            userChoseHome = true
-            showHome()
+    /** Home / Recents pressed while the bottom screen had the focus: both screens leave. */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        ThorDualScreen.leaveTogether()
+    }
+
+    /**
+     * Run a picker (or any activity for a result) from this screen, so it opens on
+     * the bottom display, and hand the result to the top screen's callback.
+     */
+    fun <I, O> launchFor(
+        contract: androidx.activity.result.contract.ActivityResultContract<I, O>,
+        input: I,
+        onResult: (O) -> Unit,
+    ): Boolean {
+        if (isFinishing || isDestroyed) return false
+        val self = java.util.concurrent.atomic.AtomicReference<androidx.activity.result.ActivityResultLauncher<I>?>()
+        val launcher = activityResultRegistry.register("thor-${launchSeq++}", contract) { r ->
+            ThorDualScreen.pickerOpen = false
+            self.get()?.unregister()
+            onResult(r)
+        }
+        self.set(launcher)
+        ThorDualScreen.pickerOpen = true
+        return try {
+            launcher.launch(input)
+            true
+        } catch (e: Exception) {
+            Log.w("RustyNES-thor", "Couldn't open a picker on the bottom screen", e)
+            launcher.unregister()
+            ThorDualScreen.pickerOpen = false
+            false
+        }
+    }
+
+    /** Show the menu; with [byController] the controller drives it (see [dispatchKeyEvent]). */
+    fun enterMenu(byController: Boolean) {
+        userChoseHome = true
+        showHome()
+        homeScroll.scrollTo(0, 0)
+        if (!byController) return
+        menuMode = true
+        // Take the key focus from the game's screen, then focus the first entry.
+        runCatching {
+            val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            am.appTasks.firstOrNull { it.taskInfo?.let { i ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) i.taskId else @Suppress("DEPRECATION") i.id
+            } == taskId }?.moveToFront()
+        }
+        ui.postDelayed({ firstButton?.requestFocusFromTouch() }, 150)
+        toast("Menu: D-pad to move, A to select, B to go back to the game")
+    }
+
+    private fun leaveMenu() {
+        menuMode = false
+        currentFocus?.clearFocus()
+        ThorDualScreen.focusGame(this)
+        if (active != null && userChoseHome) {
+            userChoseHome = false
+            showExpansion()
         }
     }
 
@@ -440,6 +585,23 @@ class ThorSecondScreenActivity : Activity() {
      * here; Back, volume and typing (the login fields) stay on this screen.
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (menuMode) {
+            when (event.keyCode) {
+                // B, Start or Select: back to the game.
+                KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_BUTTON_SELECT,
+                KeyEvent.KEYCODE_BUTTON_MODE -> {
+                    if (event.action == KeyEvent.ACTION_UP) leaveMenu()
+                    return true
+                }
+                // A selects, like the D-pad centre.
+                KeyEvent.KEYCODE_BUTTON_A -> {
+                    return super.dispatchKeyEvent(
+                        KeyEvent(event.downTime, event.eventTime, event.action, KeyEvent.KEYCODE_DPAD_CENTER, event.repeatCount),
+                    )
+                }
+            }
+            return super.dispatchKeyEvent(event)
+        }
         val code = event.keyCode
         val local = code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_VOLUME_UP ||
             code == KeyEvent.KEYCODE_VOLUME_DOWN || code == KeyEvent.KEYCODE_VOLUME_MUTE
@@ -462,26 +624,10 @@ class ThorSecondScreenActivity : Activity() {
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
-        if ((event.source and InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK &&
+        if (!menuMode && (event.source and InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK &&
             ThorDualScreen.forwardMotion(event)
         ) return true
         return super.dispatchGenericMotionEvent(event)
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        @Suppress("DEPRECATION")
-        super.onActivityResult(requestCode, resultCode, data)
-        ThorDualScreen.pickerOpen = false
-        if (requestCode != REQ_IMPORT || resultCode != RESULT_OK) return
-        val uri = data?.data ?: return
-        importFrom(this, uri) { msg ->
-            toast(msg)
-            refreshExpansions()
-            active = null
-            identityFor = null
-            userChoseHome = false
-        }
     }
 
     // ------------------------------------------------------------ polling
@@ -579,12 +725,19 @@ class ThorSecondScreenActivity : Activity() {
                     }
                 }
             }
-            if (stateLine == null) {
+            val account = ThorDualScreen.raAccountUser
+            if (stateLine == null || (account != null && ctrl == null)) {
                 stateLine = when {
+                    account != null -> {
+                        loggedIn = true
+                        "Signed in as ${account.displayName} · ${account.score} points"
+                    }
                     s.raToken.isNotEmpty() -> {
                         loggedIn = true
-                        "Signed in as ${s.raUsername}. Achievements connect when a game starts."
+                        ThorDualScreen.raStatusText.takeIf { it.startsWith("Connecting") || it.startsWith("Sign-in") }
+                            ?: "Signed in as ${s.raUsername}"
                     }
+                    ThorDualScreen.raStatusText.startsWith("Signing in") -> ThorDualScreen.raStatusText
                     ThorDualScreen.raStatusText.isNotEmpty() && ThorDualScreen.raStatusText != "Logged out" ->
                         ThorDualScreen.raStatusText
                     else -> "Not signed in."
@@ -631,6 +784,10 @@ class ThorSecondScreenActivity : Activity() {
         homeScroll.visibility = View.GONE
         expView.visibility = View.VISIBLE
         expVisible = true
+        if (!panelHintShown) {
+            panelHintShown = true
+            Toast.makeText(this, "Double-tap or hold for 3 seconds to open the menu", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showHome() {
@@ -675,7 +832,7 @@ class ThorSecondScreenActivity : Activity() {
         // Game
         home.addView(header("Game"))
         home.addView(grid(
-            action("Open game") { send(ThorCommand.OpenRom) },
+            action("Open game") { send(ThorCommand.OpenRom) }.also { firstButton = it },
             action("Close game", enabledIf = { hasGame }) { send(ThorCommand.CloseRom) },
             action("Reset", enabledIf = { hasGame }) { send(ThorCommand.Reset) },
             toggle({ if (ThorDualScreen.paused) "Resume" else "Pause" }, { ThorDualScreen.paused }, { hasGame }) {
@@ -684,7 +841,6 @@ class ThorSecondScreenActivity : Activity() {
             toggle({ "Fast-forward" }, { ThorDualScreen.turbo }, { hasGame }) { send(ThorCommand.TurboToggle) },
             action("Save states…", enabledIf = { hasGame }) { send(ThorCommand.States) },
             action("Screenshot", enabledIf = { hasGame }) { send(ThorCommand.Screenshot) },
-            action("Menu bar on top") { send(ThorCommand.Menu) },
         ))
 
         // Settings that open full pages on the top screen
@@ -695,7 +851,7 @@ class ThorSecondScreenActivity : Activity() {
             action("Netplay…") { send(ThorCommand.Netplay) },
             action("About") { send(ThorCommand.About) },
         ))
-        home.addView(label("These open on the top screen. With a controller, Start + Select opens the menu there too.", 26f, MUTED))
+        home.addView(label("With a controller, Start + Select opens this menu; B goes back to the game.", 26f, MUTED))
 
         // Display
         home.addView(header("Display"))
@@ -788,12 +944,12 @@ class ThorSecondScreenActivity : Activity() {
                     send(ThorCommand.RaLogin(user, pass))
                     passField.setText("")
                     hideKeyboard()
-                    toast(if (hasGame) "Signing in…" else "Saved. Signing in when a game starts.")
+                    toast("Signing in to RetroAchievements…")
                 }
             },
             LinearLayout.LayoutParams(-1, 112).apply { topMargin = 14 },
         )
-        raLoginBox.addView(label("Your password is only used to sign in; RustyNES keeps the sign-in token, never the password.", 24f, MUTED))
+        raLoginBox.addView(label("Signs in right away, no game needed. RustyNES keeps the sign-in token, never the password.", 24f, MUTED))
         home.addView(raLoginBox)
         raSignedInBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         raSignedInBox.addView(
@@ -876,17 +1032,18 @@ class ThorSecondScreenActivity : Activity() {
     }
 
     private fun pickExpansion() {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
-            .addCategory(Intent.CATEGORY_OPENABLE)
-            .setType("*/*")
-        ThorDualScreen.pickerOpen = true
-        try {
-            @Suppress("DEPRECATION")
-            startActivityForResult(intent, REQ_IMPORT)
-        } catch (e: Exception) {
-            ThorDualScreen.pickerOpen = false
-            toast("No file picker available")
+        val ok = launchFor(androidx.activity.result.contract.ActivityResultContracts.OpenDocument(), arrayOf("*/*")) { uri ->
+            if (uri != null) {
+                importFrom(this, uri) { msg ->
+                    toast(msg)
+                    refreshExpansions()
+                    active = null
+                    identityFor = null
+                    userChoseHome = false
+                }
+            }
         }
+        if (!ok) toast("No file picker available")
     }
 
     // ------------------------------------------------------------ view helpers
@@ -904,10 +1061,16 @@ class ThorSecondScreenActivity : Activity() {
         setPadding(0, 36, 0, 8)
     }
 
-    private fun bg(color: Int, stroke: Int? = null) = GradientDrawable().apply {
+    private fun shape(color: Int, stroke: Int?, width: Int) = GradientDrawable().apply {
         setColor(color)
         cornerRadius = 22f
-        if (stroke != null) setStroke(3, stroke)
+        if (stroke != null) setStroke(width, stroke)
+    }
+
+    /** A button background with a white ring while focused (controller navigation). */
+    private fun bg(color: Int, stroke: Int? = null) = android.graphics.drawable.StateListDrawable().apply {
+        addState(intArrayOf(android.R.attr.state_focused), shape(color, Color.WHITE, 6))
+        addState(intArrayOf(), shape(color, stroke, 3))
     }
 
     private fun button(text: String, primary: Boolean = false, onClick: () -> Unit): Button = Button(this).apply {

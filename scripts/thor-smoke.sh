@@ -26,8 +26,24 @@ adb shell dumpsys display | grep -E 'mDisplayId=|DisplayDeviceInfo|mBaseDisplayI
 # stop the app, drop the test ROM + expansions in, and launch again.
 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1
 sleep 15
+adb shell dumpsys window windows | grep -E "Window #[0-9]+ Window\{|mDisplayId=" > "$OUT/windows-first-run.txt" 2>&1
 adb shell am force-stop "$PKG"
 sleep 2
+# Skip the first-run dialogs from here on (they were checked above), via the debug
+# build's run-as access to its own preferences.
+cat > "$OUT/skip-onboarding.sh" <<'SH'
+f=shared_prefs/settings.xml
+if [ ! -f "$f" ]; then
+  mkdir -p shared_prefs
+  printf "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n<map>\n    <boolean name=\"onboardDone\" value=\"true\" />\n</map>\n" > "$f"
+elif [ -f "$f" ] && ! grep -q onboardDone "$f"; then
+  sed -i 's#</map>#    <boolean name="onboardDone" value="true" />\n</map>#' "$f"
+fi
+SH
+adb push "$OUT/skip-onboarding.sh" /data/local/tmp/skip-onboarding.sh > /dev/null 2>&1
+adb shell chmod 755 /data/local/tmp/skip-onboarding.sh
+adb shell run-as "$PKG" sh /data/local/tmp/skip-onboarding.sh 2>&1 | tee -a "$OUT/steps.txt"
+adb shell "run-as $PKG cat shared_prefs/settings.xml" > "$OUT/prefs.txt" 2>&1
 ROM=tests/roms/nes-test-roms/instr_test-v3/rom_singles/01-implied.nes
 adb push "$ROM" /sdcard/Android/data/$PKG/files/autoload.nes > /dev/null 2>&1 && log "pushed autoload ROM"
 adb shell mkdir -p /sdcard/Android/data/$PKG/files/expansions
@@ -57,6 +73,32 @@ adb pull /sdcard/Android/data/$PKG/files/thor-bottom.png "$OUT/bottom-screen-1.p
 adb shell dumpsys window | grep -E "mTopFocusedDisplayId|mCurrentFocus" | tee -a "$OUT/steps.txt"
 adb shell input keyevent KEYCODE_DPAD_RIGHT
 sleep 8
+# Hold a finger on the game panel for 3.5 s: the bottom screen must go back to its menu.
+adb shell input -d 2 swipe 620 500 620 500 3500
+sleep 3
+# Tap "All settings…" on the bottom menu: the Settings sheet must open on display 2.
+adb shell input -d 2 tap 324 898
+sleep 5
+adb shell dumpsys window windows | grep -E "Window #[0-9]+ Window\{|mDisplayId=" > "$OUT/windows-settings.txt" 2>&1
+adb exec-out screencap -p > "$OUT/top-with-settings.png" 2>/dev/null || true
+python3 - "$OUT/windows-settings.txt" <<'PY' | tee -a "$OUT/steps.txt"
+import re, sys
+win = None
+per = {}
+for line in open(sys.argv[1], errors="ignore"):
+    m = re.search(r"Window\{\S+ u0 ([^}]*)\}", line)
+    if m:
+        win = m.group(1)
+        continue
+    d = re.search(r"mDisplayId=(\d+)", line)
+    if d and win and "rustynes" in win:
+        per.setdefault(d.group(1), []).append(win)
+        win = None
+for disp, wins in sorted(per.items()):
+    print(f"[smoke] display {disp}: {len(wins)} RustyNES window(s): {wins}")
+PY
+adb shell input keyevent KEYCODE_BACK
+sleep 2
 # Dismiss the first-run dialog on the top screen (bottom-right "Continue"), then look again.
 adb shell input keyevent KEYCODE_ENTER
 sleep 20
@@ -64,6 +106,16 @@ adb exec-out screencap -p > "$OUT/top-2.png" 2>/dev/null || true
 adb pull /sdcard/Android/data/$PKG/files/thor-menu.png "$OUT/bottom-menu.png" > /dev/null 2>&1
 adb pull /sdcard/Android/data/$PKG/files/thor-bottom.png "$OUT/bottom-screen.png" > /dev/null 2>&1 && log "bottom screen snapshot saved" || log "no bottom screen snapshot"
 # Second pass: tap the top screen's dialog away and check again after more play time.
+# Home pressed on the bottom screen: both screens must leave together.
+adb shell input -d 2 keyevent KEYCODE_HOME
+sleep 5
+adb shell dumpsys activity activities | grep -E "Display #|ResumedActivity|topResumedActivity" > "$OUT/after-home.txt" 2>&1
+if grep -E "ResumedActivity.*rustynes" "$OUT/after-home.txt" > /dev/null; then
+  log "RESULT: after Home on the bottom screen, RustyNES is still showing"
+  grep -E "rustynes" "$OUT/after-home.txt" | head -4 | tee -a "$OUT/steps.txt"
+else
+  log "RESULT: after Home on the bottom screen, both screens left together"
+fi
 adb shell dumpsys window | grep -E "mCurrentFocus|mFocusedApp|mTopFocusedDisplayId|mFocusedWindow" > "$OUT/focus.txt" 2>&1
 adb shell dumpsys input | grep -iE "FocusedDisplayId|FocusedWindows|focusedWindow" >> "$OUT/focus.txt" 2>&1
 cat "$OUT/focus.txt" | tee -a "$OUT/steps.txt"

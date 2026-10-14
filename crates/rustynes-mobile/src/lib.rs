@@ -3374,6 +3374,140 @@ fn np_tick_in_game(
     }
 }
 
+/// AYN Thor build — the outcome of a [`RaAccount`] sign-in, as of the last
+/// [`RaAccount::poll`].
+#[derive(uniffi::Record)]
+pub struct RaAccountStatus {
+    /// Where the sign-in stands.
+    pub status: RaLoginStatus,
+    /// The signed-in user (`None` until signed in).
+    pub user: Option<RaUserInfo>,
+    /// The login token to persist for later token sign-ins (`None` until
+    /// signed in). Never the password.
+    pub token: Option<String>,
+    /// The server's message when the sign-in failed (empty otherwise).
+    pub message: String,
+}
+
+/// State behind [`RaAccount`]'s lock.
+struct RaAccountInner {
+    /// A bare rcheevos client: no game is ever loaded into it.
+    client: rustynes_ra::Client,
+    /// The completion of the last sign-in request, written by the rcheevos
+    /// callback during `poll_http_completions` (on the polling thread).
+    result: Arc<Mutex<Option<Result<(), String>>>>,
+    /// A sign-in request is outstanding.
+    pending: bool,
+}
+
+/// AYN Thor build — a `RetroAchievements` account session that needs no game.
+///
+/// Every [`NesController`] carries its own RA session, so before this a host
+/// could only sign in once a ROM was open. A host now signs in with this as
+/// soon as the user enters a name and password (or at start-up with a saved
+/// token), shows who is signed in, persists the returned token, and then
+/// token-signs each game's controller. It holds no emulator state and runs
+/// rcheevos on whichever thread calls it, one call at a time (the lock).
+#[derive(uniffi::Object)]
+pub struct RaAccount {
+    inner: Mutex<RaAccountInner>,
+}
+
+#[uniffi::export]
+impl RaAccount {
+    /// A signed-out account session.
+    #[uniffi::constructor]
+    #[must_use]
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self {
+            inner: Mutex::new(RaAccountInner {
+                client: rustynes_ra::Client::new(),
+                result: Arc::new(Mutex::new(None)),
+                pending: false,
+            }),
+        })
+    }
+
+    /// Begin a username + password sign-in; follow it with [`Self::poll`].
+    pub fn login_password(&self, user: String, password: String) {
+        let mut g = self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let slot = Arc::new(Mutex::new(None));
+        g.result = Arc::clone(&slot);
+        g.pending = true;
+        g.client.begin_login_password(&user, &password, move |r| {
+            *slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(r);
+        });
+    }
+
+    /// Begin a sign-in with a saved token; follow it with [`Self::poll`].
+    pub fn login_token(&self, user: String, token: String) {
+        let mut g = self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let slot = Arc::new(Mutex::new(None));
+        g.result = Arc::clone(&slot);
+        g.pending = true;
+        g.client.begin_login_token(&user, &token, move |r| {
+            *slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(r);
+        });
+    }
+
+    /// Deliver any finished server replies and report the sign-in state.
+    /// Call it every few hundred milliseconds while a sign-in is pending.
+    pub fn poll(&self) -> RaAccountStatus {
+        let mut g = self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        g.client.poll_http_completions();
+        let done = g
+            .result
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        if let Some(u) = g.client.user_info() {
+            g.pending = false;
+            return RaAccountStatus {
+                status: RaLoginStatus::LoggedIn,
+                user: Some(RaUserInfo {
+                    display_name: u.display_name,
+                    username: u.username,
+                    score: u.score,
+                }),
+                token: Some(u.token),
+                message: String::new(),
+            };
+        }
+        match done {
+            Some(Err(message)) => {
+                g.pending = false;
+                RaAccountStatus {
+                    status: RaLoginStatus::Error,
+                    user: None,
+                    token: None,
+                    message,
+                }
+            }
+            // Completed without a user (should not happen) or nothing asked yet.
+            Some(Ok(())) | None if !g.pending => RaAccountStatus {
+                status: RaLoginStatus::LoggedOut,
+                user: None,
+                token: None,
+                message: String::new(),
+            },
+            _ => RaAccountStatus {
+                status: RaLoginStatus::LoggingIn,
+                user: None,
+                token: None,
+                message: String::new(),
+            },
+        }
+    }
+
+    /// Sign out of this session (the host forgets its saved token itself).
+    pub fn logout(&self) {
+        let mut g = self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        g.client.logout();
+        g.pending = false;
+        *g.result.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+    }
+}
+
 /// Lazily create the `RetroAchievements` session on the first `ra_*` call, then
 /// return a mutable handle to it. The session persists for the controller's life
 /// (across ROM swaps); `hardcore` only seeds the initial flag when it is first

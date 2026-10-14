@@ -255,6 +255,8 @@ class MainActivity : AppCompatActivity() {
             // NEVER tinted), and only the chrome (bars, menus, controls, Settings) picks
             // up the dynamic/brand color.
             val colorScheme = rememberColorScheme(dark, settings.dynamicColor, settings.accessibilityTheme)
+            // AYN Thor build: the bottom screen's dialogs use the same colors.
+            androidx.compose.runtime.SideEffect { ThorDualScreen.colorScheme.value = colorScheme }
             MaterialTheme(colorScheme = colorScheme.copy(background = Color.Black)) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -418,6 +420,9 @@ class MainActivity : AppCompatActivity() {
     // running — the gameplay continues in the floating window instead of pausing.
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
+        // AYN Thor build: no picture-in-picture while the bottom screen is up; leaving
+        // the app takes both screens away together (see ThorDualScreen.onMainStop).
+        if (ThorDualScreen.bottomActive.value) return
         if (romRunningForPip && !inPipState.value && !emulator.paused) {
             enterPip()
         }
@@ -1252,6 +1257,18 @@ private fun EmulatorScreen(
     // so pad input is routed to navigation exactly while the menu is on screen.
     LaunchedEffect(controlsVisible) { gamepad.menuOpen = controlsVisible }
 
+    // AYN Thor build: menus never open on the top screen while the bottom one is up.
+    // The Menu button, the pad's Guide button and Start + Select bring up the bottom
+    // screen's menu instead (handing it the controller when the pad opened it).
+    LaunchedEffect(controlsVisible) {
+        if (controlsVisible && ThorDualScreen.bottomActive.value) {
+            val byPad = menuWantsFocus
+            controlsVisible = false
+            menuWantsFocus = false
+            ThorDualScreen.openMenu(byController = byPad)
+        }
+    }
+
     // Wire the pad's system-menu + navigation callbacks. They fire on the input
     // dispatch thread; marshal to the UI thread before touching Compose state/focus.
     DisposableEffect(gamepad) {
@@ -1434,7 +1451,7 @@ private fun EmulatorScreen(
     // SAF document picker — no broad storage permission required. The picked
     // bytes are handed straight to the core (no path), a persistable read grant
     // is taken, and the ROM is recorded in the recents list (Workstream E).
-    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+    val picker = rememberThorLauncher(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
@@ -1454,7 +1471,7 @@ private fun EmulatorScreen(
     // v2.9.7 "Tandem" (plan item 6): the FDS BIOS picker. Opened by a disk load that
     // failed with MissingFdsBios; the chosen file is validated (8 KiB), stored once in
     // app storage (FdsBios), and the pending disk load retried with it.
-    val fdsBiosPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+    val fdsBiosPicker = rememberThorLauncher(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
     ) { uri ->
         val retry = pendingFdsRetry
@@ -1487,7 +1504,7 @@ private fun EmulatorScreen(
     // SAF picker for a custom .pal palette (a 192-byte RGB table; extra colours,
     // e.g. a 512-colour Mesen palette, are ignored). Applied live to the running
     // core via the bridge; presentation-only, so determinism is untouched.
-    val palettePicker = androidx.activity.compose.rememberLauncherForActivityResult(
+    val palettePicker = rememberThorLauncher(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
@@ -1501,7 +1518,7 @@ private fun EmulatorScreen(
     }
 
     // SAF picker to play a .rnm TAS movie (reads the bytes, seeks to its start).
-    val moviePicker = androidx.activity.compose.rememberLauncherForActivityResult(
+    val moviePicker = rememberThorLauncher(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
@@ -1523,7 +1540,7 @@ private fun EmulatorScreen(
     }
 
     // SAF document creator to save the just-recorded .rnm movie (finalizes + writes).
-    val movieSaver = androidx.activity.compose.rememberLauncherForActivityResult(
+    val movieSaver = rememberThorLauncher(
         androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream"),
     ) { uri ->
         if (uri != null) {
@@ -1537,7 +1554,7 @@ private fun EmulatorScreen(
 
     // SAF picker for an HD-pack .zip (Mesen-style hires.txt + PNG tiles). Loads it,
     // sizes the upscaled output bitmap, and switches the UI to the Bitmap path.
-    val hdpackPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+    val hdpackPicker = rememberThorLauncher(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
@@ -1570,7 +1587,7 @@ private fun EmulatorScreen(
 
     // SAF picker for a Lua script (.lua) — loaded into the sandboxed engine; its
     // on_frame callback then runs each frame and its print/log output is shown.
-    val scriptPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+    val scriptPicker = rememberThorLauncher(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
@@ -1592,7 +1609,7 @@ private fun EmulatorScreen(
 
     // v1.8.8 "Atlas" (Workstream C): SAF image picker to set a game's box art. The
     // picked content URI is persisted (a read grant taken) and stored on the entry.
-    val boxArtPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+    val boxArtPicker = rememberThorLauncher(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
     ) { uri ->
         val target = boxArtTarget
@@ -1613,7 +1630,7 @@ private fun EmulatorScreen(
     // v1.8.8 "Atlas" (Workstream C): batch folder import. ACTION_OPEN_DOCUMENT_TREE
     // grants a persistable read over a whole directory; we enumerate it for ROM files
     // (+ sibling box-art images) off the main thread and register each in the library.
-    val treeImporter = androidx.activity.compose.rememberLauncherForActivityResult(
+    val treeImporter = rememberThorLauncher(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree(),
     ) { treeUri ->
         if (treeUri != null) {
@@ -1690,30 +1707,81 @@ private fun EmulatorScreen(
     // the first game starts; after that the saved token signs in every new game.
     var raPendingPassword by remember { mutableStateOf<String?>(null) }
 
+    /**
+     * AYN Thor build: sign in to RetroAchievements right away, with or without a
+     * game. RaAccount is a game-less session; on success its token is saved, the
+     * user shows on both screens, and the running game (if any) is token-signed in.
+     * The password is passed straight through and never stored.
+     */
+    suspend fun raAccountSignIn(begin: (uniffi.rustynes_mobile.RaAccount) -> Unit): uniffi.rustynes_mobile.RaAccountStatus? =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val account = ThorDualScreen.raAccount
+                begin(account)
+                var st = account.poll()
+                val deadline = System.currentTimeMillis() + 30_000
+                while (st.status == RaLoginStatus.LOGGING_IN && System.currentTimeMillis() < deadline) {
+                    delay(250)
+                    st = account.poll()
+                }
+                st
+            }.onFailure { android.util.Log.w("RustyNES", "RetroAchievements sign-in failed", it) }.getOrNull()
+        }
+
+    fun raApplyAccount(st: uniffi.rustynes_mobile.RaAccountStatus?, fromPassword: Boolean) {
+        when {
+            st == null -> raStatus = "Couldn't reach RetroAchievements"
+            st.status == RaLoginStatus.LOGGED_IN -> {
+                val user = st.user
+                st.token?.let { settings.raToken = it }
+                user?.username?.takeIf { it.isNotEmpty() }?.let { settings.raUsername = it }
+                ThorDualScreen.raAccountUser = user
+                raUserName = user?.displayName ?: settings.raUsername
+                raStatus = "Signed in as ${raUserName}" + (user?.let { " · ${it.score} points" } ?: "")
+                // Connect the game that is running now, if any.
+                val ctrl = emulator.controller
+                val token = settings.raToken
+                if (ctrl != null && token.isNotEmpty()) {
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            runCatching {
+                                if (ctrl.raLoginStatus() != RaLoginStatus.LOGGED_IN) {
+                                    ctrl.raInit(settings.raHardcore)
+                                    ctrl.raLoginToken(settings.raUsername, token)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            st.status == RaLoginStatus.ERROR -> {
+                ThorDualScreen.raAccountUser = null
+                raStatus = "Sign-in failed" + (st.message.takeIf { it.isNotEmpty() }?.let { ": $it" } ?: "")
+                // A rejected saved token is useless; a fresh sign-in replaces it.
+                if (!fromPassword) settings.raToken = ""
+            }
+            else -> raStatus = "Sign-in timed out. Check the connection and try again."
+        }
+    }
+
     fun raLogin(user: String, pass: String) {
         settings.raUsername = user
         if (!settings.raEnabled) settings.raEnabled = true
-        val ctrl = emulator.controller
-        if (ctrl == null) {
-            raPendingPassword = pass
-            raStatus = "Will sign in when a game starts"
-            return
-        }
-        raStatus = "Logging in…"
+        raStatus = "Signing in…"
         scope.launch {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    ctrl.raInit(settings.raHardcore)
-                    ctrl.raLoginPassword(user, pass)
-                }
-            }
+            val st = raAccountSignIn { it.loginPassword(user, pass) }
+            raApplyAccount(st, fromPassword = true)
         }
     }
 
     fun raLogout() {
         raPendingPassword = null
+        ThorDualScreen.raAccountUser = null
         scope.launch {
-            withContext(Dispatchers.IO) { runCatching { emulator.controller?.raLogout() } }
+            withContext(Dispatchers.IO) {
+                runCatching { emulator.controller?.raLogout() }
+                runCatching { ThorDualScreen.raAccount.logout() }
+            }
             settings.raToken = ""
             raUserName = null
             raStatus = "Logged out"
@@ -2052,6 +2120,14 @@ private fun EmulatorScreen(
     // and a token was saved from a prior password login, init the session and
     // token-login silently (fire-and-forget; status/toasts are polled in the loop).
     LaunchedEffect(Unit) {
+        // AYN Thor build: connect the saved account at start-up, with no game needed,
+        // so who is signed in shows right away.
+        if (settings.raEnabled && settings.raToken.isNotEmpty() && settings.raUsername.isNotEmpty()) {
+            raStatus = "Connecting to RetroAchievements…"
+            val user = settings.raUsername
+            val token = settings.raToken
+            raApplyAccount(raAccountSignIn { it.loginToken(user, token) }, fromPassword = false)
+        }
         if (settings.raEnabled && settings.raToken.isNotEmpty() && settings.raUsername.isNotEmpty()) {
             withContext(Dispatchers.IO) {
                 emulator.controller // touch (no-op); RA session is controller-scoped
@@ -2390,7 +2466,7 @@ private fun EmulatorScreen(
             // AYN Thor build: with a controller connected the on-screen pad (and its
             // MENU pill) is hidden, which left no visible way into the menu. A small
             // Menu button stays in the corner; Start + Select still works too.
-            if (controlsHidden && !controlsVisible && !inPip) {
+            if (controlsHidden && !controlsVisible && !inPip && !ThorDualScreen.bottomActive.value) {
                 androidx.compose.material3.FilledTonalButton(
                     onClick = { controlsVisible = true },
                     modifier = Modifier
@@ -2484,7 +2560,7 @@ private fun EmulatorScreen(
         }
         // v1.8.8 "Atlas" (Workstream H): in the small PiP window, show only the
         // gameplay picture — the control bar is hidden (and the on-screen pad below).
-        if (controlsVisible && !inPip) {
+        if (controlsVisible && !inPip && !ThorDualScreen.bottomActive.value) {
             Row(
             // focusGroup so the d-pad can move between entries when the menu is
             // opened via the pad's Guide button / Start+Select chord (v1.8.7, #41).
@@ -2694,6 +2770,9 @@ private fun EmulatorScreen(
     } // end emulator Column
     } // end adaptive Row (the expanded-width library rail + the player column)
 
+    // AYN Thor build: every dialog and sheet below is drawn on the bottom screen while
+    // it is open (ThorPortal), and here otherwise.
+    ThorPortal {
     // Settings + save-state manager sheets (v1.8.3).
     if (showSettings) {
         SettingsSheet(
@@ -2895,6 +2974,8 @@ private fun EmulatorScreen(
             onDismiss = { boxArtPreview = null; boxArtTarget = null },
         )
     }
+
+    } // end ThorPortal
 
     // Emulation loop: run frames + render audio on a background dispatcher, then
     // publish each frame to Compose. Pacing is audio-clocked when sound is present

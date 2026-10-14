@@ -33,7 +33,7 @@ import kotlin.math.min
 class ExpansionView(
     context: Context,
     private val onAction: (String) -> Unit,
-    private val onLongPress: () -> Unit,
+    private val onBackToMenu: () -> Unit,
 ) : View(context) {
 
     var expansion: Expansion? = null
@@ -74,20 +74,45 @@ class ExpansionView(
     private var transitionStart = 0L
     private var transitionOrder: IntArray = IntArray(0)
 
+    // Taps on a panel's buttons act once the tap is confirmed as single; a double tap
+    // anywhere, or holding a finger down for 3 seconds, goes back to the menu.
     private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean = true
-        override fun onSingleTapUp(e: MotionEvent): Boolean {
+        override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
             val x = (e.x - offX) / scale
             val y = (e.y - offY) / scale
             hitAreas.lastOrNull { it.first.contains(x, y) }?.let { onAction(it.second) }
             return true
         }
 
-        override fun onLongPress(e: MotionEvent) = onLongPress()
-    })
+        override fun onDoubleTap(e: MotionEvent): Boolean {
+            onBackToMenu()
+            return true
+        }
+    }).apply { setIsLongpressEnabled(false) }
+
+    private val holdSlop = android.view.ViewConfiguration.get(context).scaledTouchSlop * 2f
+    private var holdX = 0f
+    private var holdY = 0f
+    private val hold = Runnable { onBackToMenu() }
 
     @SuppressLint("ClickableViewAccessibility")
-    override fun onTouchEvent(event: MotionEvent): Boolean = gestures.onTouchEvent(event)
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                holdX = event.x
+                holdY = event.y
+                removeCallbacks(hold)
+                postDelayed(hold, HOLD_MS)
+            }
+            MotionEvent.ACTION_MOVE ->
+                if (kotlin.math.abs(event.x - holdX) > holdSlop || kotlin.math.abs(event.y - holdY) > holdSlop) {
+                    removeCallbacks(hold)
+                }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_POINTER_DOWN -> removeCallbacks(hold)
+        }
+        return gestures.onTouchEvent(event)
+    }
 
     override fun onDraw(canvas: Canvas) {
         val exp = expansion
@@ -462,6 +487,9 @@ class ExpansionView(
 
     companion object {
         const val REF_W = 1240f
+
+        /** How long a finger must stay down on a panel to open the menu. */
+        const val HOLD_MS = 3000L
         const val REF_H = 1080f
         val GRAY = 0xFF2B2B2B.toInt()
 

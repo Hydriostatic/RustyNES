@@ -148,3 +148,73 @@ enum class AudioLatency(val label: String, val frames: Int) {
 
 /** Display names for the six mixer channels, in the core's order. */
 val AUDIO_CHANNEL_NAMES = listOf("Pulse 1", "Pulse 2", "Triangle", "Noise", "DMC (samples)", "Cartridge audio")
+
+// ---------------------------------------------------------------- AYN Thor: menus on the bottom screen
+
+/**
+ * Shows [content] (dialogs and sheets) on the bottom screen whenever it is open,
+ * and in place otherwise. The content keeps reading the top screen's state; only
+ * where it is drawn changes. Dialog and sheet windows belong to the activity whose
+ * composition draws them, so drawing them from the bottom activity puts them on
+ * that display.
+ */
+@Composable
+fun ThorPortal(content: @Composable () -> Unit) {
+    if (!ThorDualScreen.bottomActive.value) {
+        content()
+        return
+    }
+    val latest = androidx.compose.runtime.rememberUpdatedState(content)
+    val key = androidx.compose.runtime.remember { Any() }
+    val entry: @Composable () -> Unit = { latest.value() }
+    androidx.compose.runtime.DisposableEffect(key) {
+        ThorDualScreen.portals.add(key to entry)
+        onDispose { ThorDualScreen.portals.removeAll { it.first === key } }
+    }
+}
+
+/** Draws everything sent through [ThorPortal]; lives in the bottom activity. */
+@Composable
+fun ThorPortalHost() {
+    val scheme = ThorDualScreen.colorScheme.value ?: androidx.compose.material3.darkColorScheme()
+    androidx.compose.material3.MaterialTheme(colorScheme = scheme) {
+        for ((k, c) in ThorDualScreen.portals.toList()) {
+            androidx.compose.runtime.key(k) { c() }
+        }
+    }
+}
+
+/**
+ * A result launcher that opens its picker from the bottom screen when it is open
+ * (so file pickers appear there too) and from the top activity otherwise. Same
+ * use as `rememberLauncherForActivityResult`.
+ */
+@Composable
+fun <I, O> rememberThorLauncher(
+    contract: androidx.activity.result.contract.ActivityResultContract<I, O>,
+    onResult: (O) -> Unit,
+): androidx.activity.result.ActivityResultLauncher<I> {
+    val current = androidx.compose.runtime.rememberUpdatedState(onResult)
+    val fallback = androidx.activity.compose.rememberLauncherForActivityResult(contract) { current.value(it) }
+    return androidx.compose.runtime.remember(contract) {
+        ThorLauncher(fallback, contract) { current.value(it) }
+    }
+}
+
+class ThorLauncher<I, O>(
+    private val fallback: androidx.activity.result.ActivityResultLauncher<I>,
+    private val resultContract: androidx.activity.result.contract.ActivityResultContract<I, O>,
+    private val onResult: (O) -> Unit,
+) : androidx.activity.result.ActivityResultLauncher<I>() {
+    override fun launch(input: I, options: androidx.core.app.ActivityOptionsCompat?) {
+        val bottom = ThorDualScreen.bottom.get()
+        if (bottom != null && ThorDualScreen.bottomActive.value && bottom.launchFor(resultContract, input, onResult)) return
+        ThorDualScreen.pickerOpen = true
+        runCatching { fallback.launch(input, options) }.onFailure { ThorDualScreen.pickerOpen = false; throw it }
+    }
+
+    override fun unregister() = fallback.unregister()
+
+    override val contract: androidx.activity.result.contract.ActivityResultContract<I, *>
+        get() = resultContract
+}
