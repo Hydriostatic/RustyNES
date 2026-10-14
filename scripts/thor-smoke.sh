@@ -50,6 +50,11 @@ adb shell mkdir -p /sdcard/Android/data/$PKG/files/expansions
 for e in out/expansions/*.exp; do
   [ -f "$e" ] && adb push "$e" /sdcard/Android/data/$PKG/files/expansions/ > /dev/null 2>&1 && log "pushed $e"
 done
+# A sign-in with made-up details: it must reach retroachievements.org and come back
+# with the server's refusal, without any game open.
+printf 'rustynes-ci-%s\nnot-a-real-password\n' "$RANDOM" > "$OUT/ra-test.txt"
+adb push "$OUT/ra-test.txt" /sdcard/Android/data/$PKG/files/ra-test.txt > /dev/null 2>&1
+rm -f "$OUT/ra-test.txt"
 adb logcat -b all -c || true
 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 > "$OUT/launch.txt" 2>&1
 log "launched"
@@ -106,15 +111,16 @@ adb exec-out screencap -p > "$OUT/top-2.png" 2>/dev/null || true
 adb pull /sdcard/Android/data/$PKG/files/thor-menu.png "$OUT/bottom-menu.png" > /dev/null 2>&1
 adb pull /sdcard/Android/data/$PKG/files/thor-bottom.png "$OUT/bottom-screen.png" > /dev/null 2>&1 && log "bottom screen snapshot saved" || log "no bottom screen snapshot"
 # Second pass: tap the top screen's dialog away and check again after more play time.
-# Home pressed on the bottom screen: both screens must leave together.
-adb shell input -d 2 keyevent KEYCODE_HOME
+# Home: both screens must leave together. (The emulator's simulated second display
+# has no home screen of its own, so Home is pressed on the main display here.)
+adb shell input keyevent KEYCODE_HOME
 sleep 5
 adb shell dumpsys activity activities | grep -E "Display #|ResumedActivity|topResumedActivity" > "$OUT/after-home.txt" 2>&1
 if grep -E "ResumedActivity.*rustynes" "$OUT/after-home.txt" > /dev/null; then
-  log "RESULT: after Home on the bottom screen, RustyNES is still showing"
+  log "RESULT: after Home, RustyNES is still showing"
   grep -E "rustynes" "$OUT/after-home.txt" | head -4 | tee -a "$OUT/steps.txt"
 else
-  log "RESULT: after Home on the bottom screen, both screens left together"
+  log "RESULT: after Home, both screens left together"
 fi
 adb shell dumpsys window | grep -E "mCurrentFocus|mFocusedApp|mTopFocusedDisplayId|mFocusedWindow" > "$OUT/focus.txt" 2>&1
 adb shell dumpsys input | grep -iE "FocusedDisplayId|FocusedWindows|focusedWindow" >> "$OUT/focus.txt" 2>&1
@@ -122,6 +128,7 @@ cat "$OUT/focus.txt" | tee -a "$OUT/steps.txt"
 adb logcat -b all -d > "$OUT/logcat.txt" 2>&1
 grep -E "RustyNES-thor|RustyNES-exp" "$OUT/logcat.txt" | tee "$OUT/thor-log.txt" | head -20 | tee -a "$OUT/steps.txt"
 grep -E "FATAL EXCEPTION|AndroidRuntime|RustyNES" "$OUT/logcat.txt" | head -80 > "$OUT/logcat-app.txt"
+grep -E "RA status" "$OUT/logcat.txt" | tee -a "$OUT/steps.txt"
 if grep -q "FATAL EXCEPTION" "$OUT/logcat.txt"; then log "RESULT: crash"; else log "RESULT: no crash"; fi
 if grep -q "am_anr" "$OUT/logcat.txt"; then log "RESULT: ANR"; grep "ANR in" "$OUT/logcat.txt" | head -3 | tee -a "$OUT/steps.txt"; else log "RESULT: no ANR"; fi
 [ -n "${PID:-}" ] && log "RESULT: process alive" || log "RESULT: process NOT running"

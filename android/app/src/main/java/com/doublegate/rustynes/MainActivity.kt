@@ -2208,6 +2208,23 @@ private fun EmulatorScreen(
         onDispose { if (ThorDualScreen.settings === settings) ThorDualScreen.settings = null }
     }
 
+    // Debug-only (AYN Thor CI): `ra-test.txt` (user, then password, one per line) in
+    // the external files dir runs the RetroAchievements sign-in once, with no game,
+    // and the status is logged, so CI can prove the sign-in reaches the server.
+    LaunchedEffect(Unit) {
+        if (BuildConfig.DEBUG) {
+            val f = java.io.File(context.getExternalFilesDir(null), "ra-test.txt")
+            val lines = withContext(Dispatchers.IO) { runCatching { f.readLines() }.getOrNull() }
+            if (lines != null && lines.size >= 2) {
+                withContext(Dispatchers.IO) { f.delete() }
+                raLogin(lines[0].trim(), lines[1])
+            }
+        }
+    }
+    LaunchedEffect(raStatus) {
+        if (BuildConfig.DEBUG) android.util.Log.i("RustyNES-thor", "RA status: $raStatus")
+    }
+
     // Debug-only convenience: auto-load a ROM pushed to the app's external files
     // dir (`/sdcard/Android/data/<pkg>/files/autoload.nes`) so the render path
     // can be verified on-device without driving the SAF picker by hand. Never
