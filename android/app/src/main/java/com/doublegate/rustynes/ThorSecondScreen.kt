@@ -298,7 +298,9 @@ class ThorSecondScreenActivity : Activity() {
         workerHandler = Handler(t.looper).also { it.post(poll) }
         Log.i("RustyNES-thor", "bottom screen started on display ${displayIdCompat()}")
         // Debug builds: save what this screen shows, so CI can check it without a device.
-        if (BuildConfig.DEBUG) ui.postDelayed({ debugSnapshot() }, 15000)
+        if (BuildConfig.DEBUG) {
+            for (t in listOf(15000L, 40000L, 70000L)) ui.postDelayed({ debugSnapshot() }, t)
+        }
     }
 
     private fun debugSnapshot() {
@@ -308,7 +310,7 @@ class ThorSecondScreenActivity : Activity() {
             root.draw(android.graphics.Canvas(bmp))
             val f = java.io.File(getExternalFilesDir(null), "thor-bottom.png")
             f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
-            Log.i("RustyNES-thor", "snapshot ${root.width}x${root.height} expansion=${active?.id} page=${if (expVisible) "expansion" else "home"}")
+            Log.i("RustyNES-thor", "snapshot ${root.width}x${root.height} expansion=${active?.id} page=${if (expVisible) "expansion" else "home"} rom=${ThorDualScreen.romName} running=${ThorDualScreen.emulator?.controller != null} installed=${ExpansionStore.all(this).map { it.id }}")
         }.onFailure { Log.w("RustyNES-thor", "snapshot failed", it) }
     }
 
