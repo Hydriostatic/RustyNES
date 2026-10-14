@@ -141,6 +141,70 @@ class AppSettings(context: Context) {
         get() = _filter.value
         set(v) { _filter.value = v; prefs.edit().putInt("filter", v.ordinal).apply() }
 
+    // Display geometry (AYN Thor build): how the 256x240 picture is shaped and sized
+    // on screen. Applied on the default (Bitmap) renderer; see NesPicture in
+    // ThorDisplay.kt. The GPU renderer keeps its own fixed 8:7 letterbox.
+    private val _aspectMode =
+        mutableStateOf(AspectMode.entries.getOrElse(prefs.getInt("aspectMode", 0)) { AspectMode.Pixel87 })
+    var aspectMode: AspectMode
+        get() = _aspectMode.value
+        set(v) { _aspectMode.value = v; prefs.edit().putInt("aspectMode", v.ordinal).apply() }
+
+    private val _integerScale = mutableStateOf(prefs.getBoolean("integerScale", false))
+    var integerScale: Boolean
+        get() = _integerScale.value
+        set(v) { _integerScale.value = v; prefs.edit().putBoolean("integerScale", v).apply() }
+
+    private val _overscan =
+        mutableStateOf(OverscanCrop.entries.getOrElse(prefs.getInt("overscan", 0)) { OverscanCrop.None })
+    var overscan: OverscanCrop
+        get() = _overscan.value
+        set(v) { _overscan.value = v; prefs.edit().putInt("overscan", v.ordinal).apply() }
+
+    private val _smoothScaling = mutableStateOf(prefs.getBoolean("smoothScaling", false))
+    var smoothScaling: Boolean
+        get() = _smoothScaling.value
+        set(v) { _smoothScaling.value = v; prefs.edit().putBoolean("smoothScaling", v).apply() }
+
+    // Audio (AYN Thor build). Master volume is the output track's gain; the
+    // channel gains and filter go to the core's mixer (never saved in a state).
+    private val _masterVolume = mutableStateOf(prefs.getFloat("masterVolume", 1f))
+    var masterVolume: Float
+        get() = _masterVolume.value
+        set(v) { _masterVolume.value = v.coerceIn(0f, 1f); prefs.edit().putFloat("masterVolume", _masterVolume.value).apply() }
+
+    /** Pulse 1, pulse 2, triangle, noise, DMC, expansion audio; 0.0..2.0 each. */
+    private val _channelGains = mutableStateOf(
+        (prefs.getString("channelGains", null)?.split(',')?.mapNotNull { it.toFloatOrNull() }
+            ?.takeIf { it.size == 6 } ?: List(6) { 1f }),
+    )
+    var channelGains: List<Float>
+        get() = _channelGains.value
+        set(v) { _channelGains.value = v; prefs.edit().putString("channelGains", v.joinToString(",")).apply() }
+
+    private val _audioFilter =
+        mutableStateOf(AudioFilterMode.entries.getOrElse(prefs.getInt("audioFilter", 0)) { AudioFilterMode.Nes })
+    var audioFilter: AudioFilterMode
+        get() = _audioFilter.value
+        set(v) { _audioFilter.value = v; prefs.edit().putInt("audioFilter", v.ordinal).apply() }
+
+    private val _audioLatency =
+        mutableStateOf(AudioLatency.entries.getOrElse(prefs.getInt("audioLatency", 1)) { AudioLatency.Normal })
+    var audioLatency: AudioLatency
+        get() = _audioLatency.value
+        set(v) { _audioLatency.value = v; prefs.edit().putInt("audioLatency", v.ordinal).apply() }
+
+    // Emulation (AYN Thor build): enhancements the core supports.
+    private val _spriteLimitOff = mutableStateOf(prefs.getBoolean("spriteLimitOff", false))
+    var spriteLimitOff: Boolean
+        get() = _spriteLimitOff.value
+        set(v) { _spriteLimitOff.value = v; prefs.edit().putBoolean("spriteLimitOff", v).apply() }
+
+    private val _cpuOverclock = mutableStateOf(prefs.getInt("cpuOverclock", 1).coerceIn(1, 4))
+    var cpuOverclock: Int
+        get() = _cpuOverclock.value
+        set(v) { _cpuOverclock.value = v.coerceIn(1, 4); prefs.edit().putInt("cpuOverclock", _cpuOverclock.value).apply() }
+
     private val _hapticLevel =
         mutableStateOf(HapticLevel.entries.getOrElse(prefs.getInt("hapticLvl", HapticLevel.Medium.ordinal)) { HapticLevel.Medium })
     var hapticLevel: HapticLevel
@@ -411,6 +475,7 @@ fun SettingsSheet(
     onCloudSavesChange: (Boolean) -> Unit = {},
     onPgsSignIn: () -> Unit = {},
     onLanguageChange: (LanguageMode) -> Unit = {},
+    onOpenControllers: () -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -486,6 +551,100 @@ fun SettingsSheet(
                             onLanguageChange(lang)
                         },
                         label = { Text(languageLabel(lang)) },
+                    )
+                }
+            }
+
+            // Display (AYN Thor build): aspect ratio, integer scaling, overscan crop and
+            // smoothing for the picture. Default renderer only (the GPU renderer keeps
+            // its fixed 8:7 letterbox), so say so when the GPU renderer is on.
+            SectionHeader("Display")
+            if (settings.useGpuRenderer) {
+                Text("These apply to the default renderer. Turn off the GPU renderer below to use them.")
+            }
+            Text("Aspect ratio")
+            Row(
+                modifier = Modifier.fillMaxWidth().selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AspectMode.entries.forEach { a ->
+                    FilterChip(
+                        selected = settings.aspectMode == a,
+                        onClick = { settings.aspectMode = a },
+                        label = { Text(a.label) },
+                    )
+                }
+            }
+            Text("Crop overscan")
+            Row(
+                modifier = Modifier.fillMaxWidth().selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OverscanCrop.entries.forEach { o ->
+                    FilterChip(
+                        selected = settings.overscan == o,
+                        onClick = { settings.overscan = o },
+                        label = { Text(o.label) },
+                    )
+                }
+            }
+            ToggleRow("Integer scaling (sharpest pixels)", settings.integerScale) { settings.integerScale = it }
+            ToggleRow("Smooth scaling", settings.smoothScaling) { settings.smoothScaling = it }
+
+            // Audio (AYN Thor build): output volume, buffer size, the core's analog
+            // filter model and per-channel mixer. Mixer + filter are applied to the
+            // running game at once; the buffer size when the next game starts.
+            SectionHeader("Audio")
+            ToggleRow("Sound", !settings.muted) { settings.muted = !it }
+            ParamSlider("Volume", settings.masterVolume * 100f, 0f..100f, "%.0f%%") { settings.masterVolume = it / 100f }
+            Text("Audio buffer (bigger = no crackle or stutter, a little more delay)")
+            Row(
+                modifier = Modifier.fillMaxWidth().selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AudioLatency.entries.forEach { l ->
+                    FilterChip(
+                        selected = settings.audioLatency == l,
+                        onClick = { settings.audioLatency = l },
+                        label = { Text(l.label) },
+                    )
+                }
+            }
+            Text("Output filter")
+            Row(
+                modifier = Modifier.fillMaxWidth().selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AudioFilterMode.entries.forEach { f ->
+                    FilterChip(
+                        selected = settings.audioFilter == f,
+                        onClick = { settings.audioFilter = f },
+                        label = { Text(f.label) },
+                    )
+                }
+            }
+            Text("Channel volumes")
+            AUDIO_CHANNEL_NAMES.forEachIndexed { i, name ->
+                ParamSlider(name, settings.channelGains[i] * 100f, 0f..200f, "%.0f%%") { v ->
+                    settings.channelGains = settings.channelGains.toMutableList().also { it[i] = v / 100f }
+                }
+            }
+            TextButton(onClick = { settings.channelGains = List(6) { 1f } }) { Text("Reset channel volumes") }
+
+            // Emulation (AYN Thor build): enhancements from the core. Both change how
+            // the game runs, so they are skipped during a movie or netplay session.
+            SectionHeader("Emulation")
+            ToggleRow("Remove sprite limit (less flicker)", settings.spriteLimitOff) { settings.spriteLimitOff = it }
+            Text("CPU overclock (less slowdown in games that lag)")
+            Row(
+                modifier = Modifier.fillMaxWidth().selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                (1..4).forEach { k ->
+                    FilterChip(
+                        selected = settings.cpuOverclock == k,
+                        onClick = { settings.cpuOverclock = k },
+                        label = { Text(if (k == 1) "Off" else "${k}x") },
                     )
                 }
             }
@@ -578,7 +737,7 @@ fun SettingsSheet(
                 val thorCtx = LocalContext.current
                 val thorActivity = ThorDualScreen.findActivity(thorCtx) as? MainActivity
                 var thorOn by remember { mutableStateOf(ThorDualScreen.isEnabled(thorCtx)) }
-                Text("AYN Thor second screen")
+                SectionHeader("AYN Thor second screen")
                 ToggleRow("Use the bottom screen", thorOn) { on ->
                     thorOn = on
                     thorActivity?.let { ThorDualScreen.setEnabled(it, on) }
@@ -597,7 +756,7 @@ fun SettingsSheet(
             // (never the password) is persisted for a silent re-login. While logged in
             // the user + score are shown with a Log out button; otherwise the login
             // fields. Hardcore disables save-states/rewind while a game is identified.
-            Text(stringResource(R.string.settings_retroachievements))
+            SectionHeader(stringResource(R.string.settings_retroachievements))
             ToggleRow(stringResource(R.string.settings_enable_ra), raEnabled, onRaEnabledChange)
             if (raEnabled) {
                 if (raUser != null) {
@@ -772,6 +931,14 @@ fun SettingsSheet(
                 }
             }
 
+            // Input (AYN Thor build): the controller setup dialog (port assignment,
+            // per-button remapping, autofire) plus the touch-pad options below.
+            SectionHeader("Input")
+            Button(onClick = onOpenControllers, modifier = Modifier.fillMaxWidth()) {
+                Text("Controllers, button mapping and turbo…")
+            }
+            Text("Open the menu with a controller: press Start + Select together.")
+
             // Haptic intensity (Off / Low / Medium / High).
             Text(stringResource(R.string.settings_haptics))
             Row(
@@ -932,4 +1099,15 @@ private fun ControllerSizeSlider(
             }
         }
     }
+}
+
+/** A bold section title in the Settings sheet (AYN Thor build). */
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        title,
+        style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+        color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 12.dp),
+    )
 }

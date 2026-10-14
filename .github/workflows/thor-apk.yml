@@ -80,14 +80,29 @@ jobs:
           ./gradlew :app:assembleFossDebug --no-daemon --stacktrace --warning-mode all 2>&1 | tee ../out/logs/gradle-universal.log
           cp app/build/outputs/apk/foss/debug/*.apk ../out/RustyNES-universal-debug.apk
 
-      # The deliverable: arm64-v8a only. Rust is already compiled; this only re-packages.
-      - name: Build arm64 APK
+      # The deliverable: an optimized release build (R8, not debuggable), arm64-v8a
+      # only, signed with the debug key (the app's release signing falls back to it
+      # when no upload keystore is configured) so it sideloads like a debug APK.
+      # Debug builds run Kotlin/Compose unoptimized with StrictMode on, which showed
+      # up as stutter on the device. Rust is already compiled; this only packages.
+      - name: Build release APK (arm64)
         id: arm64
         working-directory: android
         run: |
           set -o pipefail
-          ./gradlew :app:assembleFossDebug -PrustynesAbis=arm64-v8a --no-daemon --stacktrace 2>&1 | tee ../out/logs/gradle-arm64.log
-          cp app/build/outputs/apk/foss/debug/*.apk ../out/RustyNES-AYN-Thor-arm64.apk
+          ./gradlew :app:assembleFossRelease --no-daemon --stacktrace 2>&1 | tee ../out/logs/gradle-release.log
+          cp app/build/outputs/apk/foss/release/*.apk ../out/RustyNES-AYN-Thor-arm64.apk
+
+      # The same release build with x86_64 added, only for the emulator smoke test.
+      - name: Build release APK for the emulator test
+        id: releasex86
+        continue-on-error: true
+        working-directory: android
+        run: |
+          set -o pipefail
+          ./gradlew :app:assembleFossRelease -PreleaseAbis=arm64-v8a,x86_64 --no-daemon 2>&1 | tail -30 > ../out/logs/gradle-release-x86.log
+          mkdir -p ../out/smoke-only
+          cp app/build/outputs/apk/foss/release/*.apk ../out/smoke-only/RustyNES-release-universal.apk
 
       - name: Unit tests
         if: steps.arm64.outcome == 'success'
@@ -144,7 +159,8 @@ jobs:
         run: |
           {
             echo "universal: ${{ steps.universal.outcome }}"
-            echo "arm64: ${{ steps.arm64.outcome }}"
+            echo "release arm64: ${{ steps.arm64.outcome }}"
+            echo "release x86_64+arm64 (smoke only): ${{ steps.releasex86.outcome }}"
           } > out/logs/status.txt
 
       - uses: actions/upload-artifact@v7
@@ -182,7 +198,9 @@ jobs:
           target: google_apis
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: bash scripts/thor-smoke.sh out/RustyNES-universal-debug.apk out/smoke
+          script: |
+            bash scripts/thor-smoke.sh out/RustyNES-universal-debug.apk out/smoke
+            bash scripts/thor-smoke-release.sh out/smoke-only/RustyNES-release-universal.apk out/smoke/release
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -220,6 +238,7 @@ jobs:
             date -u
           } > pub/RUN.txt
           cd pub
+          rm -rf smoke-only
           git init -q -b thor-builds
           git config user.name "thor-ci"
           git config user.email "thor-ci@users.noreply.github.com"

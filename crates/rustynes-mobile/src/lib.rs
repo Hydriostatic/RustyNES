@@ -1454,6 +1454,65 @@ impl NesController {
         for_each_console(&mut self.lock(), |nes| nes.set_four_score(enabled));
     }
 
+    // --- Host audio + emulation options (AYN Thor build) -------------------
+    //
+    // These expose to the mobile hosts the option setters the desktop frontend
+    // already drives. The two audio ones are mixing overlays that are never
+    // written into a save state (see `Nes::set_apu_channel_gain` /
+    // `Nes::set_apu_filter_model`), so they cannot affect determinism. The two
+    // emulation ones change what the console does, so like `reset` they are
+    // refused while a movie or a netplay session owns the timeline: a movie
+    // records the options it started with, and both netplay peers must agree.
+
+    /// Set the APU per-channel mixer gains, in the order pulse 1, pulse 2,
+    /// triangle, noise, DMC, expansion (mapper) audio. Missing entries stay at
+    /// `1.0`; every gain is clamped to `0.0..=2.0` (the core clamps too).
+    /// Applied to both consoles of a Vs. cabinet.
+    pub fn set_audio_channel_gains(&self, gains: Vec<f32>) {
+        let mut g6 = [1.0_f32; 6];
+        for (dst, src) in g6.iter_mut().zip(gains.iter()) {
+            *dst = if src.is_finite() { src.clamp(0.0, 2.0) } else { 1.0 };
+        }
+        for_each_console(&mut self.lock(), |nes| nes.set_apu_channel_gain(g6));
+    }
+
+    /// Select the APU analog output filter: `0` = NES front-loader (the
+    /// default, 90 + 440 Hz high-pass), `1` = Famicom (37 Hz high-pass, fuller
+    /// bass), `2` = clean (~10 Hz DC block only). Unknown values select `0`.
+    pub fn set_audio_filter(&self, model: u8) {
+        let m = match model {
+            1 => rustynes_core::rustynes_apu::FilterModel::Famicom,
+            2 => rustynes_core::rustynes_apu::FilterModel::Clean,
+            _ => rustynes_core::rustynes_apu::FilterModel::NesRf,
+        };
+        for_each_console(&mut self.lock(), |nes| nes.set_apu_filter_model(m));
+    }
+
+    /// Draw every sprite on a scanline instead of the hardware's first eight
+    /// (removes flicker in many games; render-only). Returns `false` and
+    /// changes nothing while a movie or netplay session owns the timeline.
+    pub fn set_sprite_limit_disabled(&self, disabled: bool) -> bool {
+        let mut g = self.lock();
+        if timeline_refusal(&g).is_some() {
+            return false;
+        }
+        for_each_console(&mut g, |nes| nes.set_sprite_limit_disabled(disabled));
+        true
+    }
+
+    /// CPU overclock multiplier, `1` (stock) to `rustynes_core::MAX_CPU_OVERCLOCK`;
+    /// out-of-range values are clamped by the core. Reduces slowdown in games
+    /// that lag. Returns `false` and changes nothing while a movie or netplay
+    /// session owns the timeline.
+    pub fn set_cpu_overclock(&self, factor: u8) -> bool {
+        let mut g = self.lock();
+        if timeline_refusal(&g).is_some() {
+            return false;
+        }
+        for_each_console(&mut g, |nes| nes.set_cpu_overclock(factor));
+        true
+    }
+
     /// Soft-reset (the front-panel Reset button); preserves power-on alignment.
     /// On a cabinet both consoles reset.
     ///

@@ -500,6 +500,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** AYN Thor: the bottom screen's Turbo A/B toggle (the manager holds the live flag). */
+    fun setAutofire(on: Boolean, settings: AppSettings) {
+        if (::gamepad.isInitialized) gamepad.setAutofire(on, settings) else settings.autofireAB = on
+    }
+
     /** AYN Thor: a controller event that reached the bottom-screen window instead of this one. */
     fun handleForwardedKey(event: KeyEvent): Boolean = when (event.action) {
         KeyEvent.ACTION_DOWN -> gamepad.onKey(event) || emulator.onKeyboard(event.keyCode, true)
@@ -940,7 +945,26 @@ private const val FRAME_NANOS = 16_639_267L
  * whenever sound is present — the audio clock, not the wall clock, drives frame
  * cadence — while a small buffer absorbs scheduling jitter.
  */
-private class AudioPlayer(sampleRate: Int, private val audioManager: AudioManager?) {
+private class AudioPlayer(
+    sampleRate: Int,
+    private val audioManager: AudioManager?,
+    /** Buffer size in NES frames (AYN Thor build: the Audio buffer setting). */
+    bufferFrames: Int = 4,
+) {
+    /** Output gain 0..1 (AYN Thor build: the Volume setting). */
+    @Volatile
+    private var masterVolume = 1f
+
+    @Volatile
+    private var ducked = false
+
+    fun setMasterVolume(v: Float) {
+        val nv = v.coerceIn(0f, 1f)
+        if (nv == masterVolume) return
+        masterVolume = nv
+        runCatching { track.setVolume(if (ducked) nv * DUCK_VOLUME else nv) }
+    }
+
     private val track: AudioTrack
 
     private val attributes: AudioAttributes = AudioAttributes.Builder()
@@ -965,9 +989,13 @@ private class AudioPlayer(sampleRate: Int, private val audioManager: AudioManage
         when (change) {
             AudioManager.AUDIOFOCUS_GAIN -> {
                 focusMuted = false
-                track.setVolume(1f)
+                ducked = false
+                track.setVolume(masterVolume)
             }
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> track.setVolume(DUCK_VOLUME)
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                ducked = true
+                track.setVolume(masterVolume * DUCK_VOLUME)
+            }
             AudioManager.AUDIOFOCUS_LOSS, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> focusMuted = true
         }
     }
@@ -980,7 +1008,7 @@ private class AudioPlayer(sampleRate: Int, private val audioManager: AudioManage
         )
         // ~4 NES frames of headroom (>= the platform minimum) absorbs jitter
         // without adding noticeable latency.
-        val bufBytes = maxOf(minBuf, sampleRate * 4 / 60 * 4)
+        val bufBytes = maxOf(minBuf, sampleRate * 4 / 60 * bufferFrames.coerceIn(2, 16))
         track = AudioTrack.Builder()
             .setAudioAttributes(attributes)
             .setAudioFormat(
@@ -1006,7 +1034,7 @@ private class AudioPlayer(sampleRate: Int, private val audioManager: AudioManage
             .build()
             .also { focusRequest = it }
         focusMuted = am.requestAudioFocus(req) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        if (!focusMuted) track.setVolume(1f)
+        if (!focusMuted) track.setVolume(masterVolume)
     }
 
     /** Stop output while emulation is paused (backgrounded or user-paused), and
@@ -1656,6 +1684,62 @@ private fun EmulatorScreen(
         }
     }
 
+    // AYN Thor build: RetroAchievements actions shared by the Settings sheet and the
+    // bottom screen. The RA session lives on the game's controller, so a password
+    // typed before any game is open is held in memory (never saved) and used when
+    // the first game starts; after that the saved token signs in every new game.
+    var raPendingPassword by remember { mutableStateOf<String?>(null) }
+
+    fun raLogin(user: String, pass: String) {
+        settings.raUsername = user
+        if (!settings.raEnabled) settings.raEnabled = true
+        val ctrl = emulator.controller
+        if (ctrl == null) {
+            raPendingPassword = pass
+            raStatus = "Will sign in when a game starts"
+            return
+        }
+        raStatus = "Logging in…"
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    ctrl.raInit(settings.raHardcore)
+                    ctrl.raLoginPassword(user, pass)
+                }
+            }
+        }
+    }
+
+    fun raLogout() {
+        raPendingPassword = null
+        scope.launch {
+            withContext(Dispatchers.IO) { runCatching { emulator.controller?.raLogout() } }
+            settings.raToken = ""
+            raUserName = null
+            raStatus = "Logged out"
+        }
+    }
+
+    fun raSetEnabled(on: Boolean) {
+        settings.raEnabled = on
+        if (on) {
+            scope.launch {
+                withContext(Dispatchers.IO) {
+                    runCatching { emulator.controller?.raInit(settings.raHardcore) }
+                }
+            }
+        }
+    }
+
+    fun raSetHardcore(hc: Boolean) {
+        settings.raHardcore = hc
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching { emulator.controller?.raSetHardcore(hc) }
+            }
+        }
+    }
+
     // Persist the current RA progress sidecar (if any) for the loaded ROM.
     fun raSaveProgress() {
         val ctrl = emulator.controller ?: return
@@ -1990,7 +2074,62 @@ private fun EmulatorScreen(
     // A no-op until logged in; the login-edge handler in the loop re-issues it then.
     LaunchedEffect(emulator.romSha) {
         raGameLoaded = false
+        // AYN Thor build: each game gets a new controller with its own RA session,
+        // which starts signed out. Sign it in (pending password first, else the saved
+        // token); the loop's login edge then identifies the game. Before this, only a
+        // controller that existed at app start was ever signed in, so achievements
+        // never registered for a game opened from the library.
+        val ctrl = emulator.controller
+        if (ctrl != null && settings.raEnabled && settings.raUsername.isNotEmpty()) {
+            val pending = raPendingPassword
+            val token = settings.raToken
+            if (pending != null || token.isNotEmpty()) {
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        val st = ctrl.raLoginStatus()
+                        if (st != RaLoginStatus.LOGGED_IN && st != RaLoginStatus.LOGGING_IN) {
+                            ctrl.raInit(settings.raHardcore)
+                            if (pending != null) {
+                                ctrl.raLoginPassword(settings.raUsername, pending)
+                            } else {
+                                ctrl.raLoginToken(settings.raUsername, token)
+                            }
+                        }
+                    }
+                }
+                if (pending != null) {
+                    raPendingPassword = null
+                    raStatus = "Logging in…"
+                }
+            }
+        }
         raIdentifyGame()
+    }
+
+    // AYN Thor build: push the Audio + Emulation settings to the running game, on
+    // every game start and whenever one of them changes.
+    LaunchedEffect(
+        emulator.romSha,
+        settings.channelGains,
+        settings.audioFilter,
+        settings.spriteLimitOff,
+        settings.cpuOverclock,
+    ) {
+        val ctrl = emulator.controller ?: return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            runCatching {
+                ctrl.setAudioChannelGains(settings.channelGains)
+                ctrl.setAudioFilter(settings.audioFilter.code.toUByte())
+                ctrl.setSpriteLimitDisabled(settings.spriteLimitOff)
+                ctrl.setCpuOverclock(settings.cpuOverclock.toUByte())
+            }.onFailure { android.util.Log.w("RustyNES", "applying options failed", it) }
+        }
+    }
+
+    // AYN Thor build: the bottom screen reads and changes the same settings object.
+    DisposableEffect(settings) {
+        ThorDualScreen.settings = settings
+        onDispose { if (ThorDualScreen.settings === settings) ThorDualScreen.settings = null }
     }
 
     // Debug-only convenience: auto-load a ROM pushed to the app's external files
@@ -2041,6 +2180,7 @@ private fun EmulatorScreen(
             sort = librarySort,
             onOpen = { picker.launch(arrayOf("*/*")) },
             onImportFolder = { treeImporter.launch(null) },
+            onSettings = { showSettings = true },
             onSelectFolder = { folder, favs -> libFolder = folder; libFavoritesOnly = favs },
             onQueryChange = { libQuery = it },
             onSortChange = { librarySort = it },
@@ -2123,35 +2263,25 @@ private fun EmulatorScreen(
                     // PAR letterbox internally (gfx.rs), so it is NOT wrapped here (no
                     // double-apply). HD-pack frames carry their own aspect (the upscaled
                     // bitmap), so they keep fillMaxSize + ContentScale.Fit instead.
-                    val nesAspect = if (hdActive) {
-                        Modifier.fillMaxSize()
-                    } else {
-                        Modifier
-                            .aspectRatio(8f / 7f, matchHeightConstraintsFirst = true)
-                            .align(Alignment.Center)
-                    }
-                    Image(
-                        bitmap = current,
-                        contentDescription = stringResource(R.string.cd_nes_screen),
-                        modifier = nesAspect
-                            .onSizeChanged { screenSize = it }
-                            .then(
-                                if (videoFiltersSupported && settings.filter != VideoFilter.None && screenSize.width > 0) {
-                                    Modifier.graphicsLayer {
-                                        renderEffect = buildRenderEffect(
-                                            settings.filter,
-                                            screenSize.width.toFloat(),
-                                            screenSize.height.toFloat(),
-                                        )
-                                    }
-                                } else {
-                                    Modifier
-                                },
-                            ),
-                        contentScale = ContentScale.Fit,
-                        // Nearest-neighbour: preserve the crisp pixel grid.
-                        filterQuality = FilterQuality.None,
-                    )
+                    // AYN Thor build: the picture's shape and size follow the Display
+                    // settings (aspect, integer scaling, overscan crop, smoothing) via
+                    // NesPicture; the AGSL filter layer and size reporting ride along.
+                    val effect = Modifier
+                        .onSizeChanged { screenSize = it }
+                        .then(
+                            if (videoFiltersSupported && settings.filter != VideoFilter.None && screenSize.width > 0) {
+                                Modifier.graphicsLayer {
+                                    renderEffect = buildRenderEffect(
+                                        settings.filter,
+                                        screenSize.width.toFloat(),
+                                        screenSize.height.toFloat(),
+                                    )
+                                }
+                            } else {
+                                Modifier
+                            },
+                        )
+                    NesPicture(current, settings, effect)
                 }
             }
             // RetroAchievements toast HUD (v1.8.6) — unlock + login/server messages.
@@ -2257,6 +2387,18 @@ private fun EmulatorScreen(
                     modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
                 )
             }
+            // AYN Thor build: with a controller connected the on-screen pad (and its
+            // MENU pill) is hidden, which left no visible way into the menu. A small
+            // Menu button stays in the corner; Start + Select still works too.
+            if (controlsHidden && !controlsVisible && !inPip) {
+                androidx.compose.material3.FilledTonalButton(
+                    onClick = { controlsVisible = true },
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                        .alpha(0.55f),
+                ) { Text("☰ Menu") }
+            }
             // While casting, a small banner over the (still-mirrored) phone picture.
             if (castManager.casting) {
                 Text(
@@ -2304,6 +2446,41 @@ private fun EmulatorScreen(
             // enforces its own quota (so this no-ops most of the time, with no CTA) and
             // no-ops entirely on a sideloaded / non-Play install.
             host?.requestInAppReview()
+        }
+        // AYN Thor build: actions sent from the bottom screen run here, where the
+        // pickers, sheets and control-bar state live, so both screens share them.
+        LaunchedEffect(Unit) {
+            ThorDualScreen.commands.collect { cmd ->
+                when (cmd) {
+                    ThorCommand.OpenRom -> picker.launch(arrayOf("*/*"))
+                    ThorCommand.CloseRom -> if (romLoaded) closeRom()
+                    ThorCommand.Reset -> emulator.controller?.reset()
+                    ThorCommand.PauseToggle -> {
+                        paused = !paused
+                        emulator.paused = paused
+                    }
+                    ThorCommand.TurboToggle -> if (!npActive) {
+                        turbo = !turbo
+                        emulator.turbo = turbo
+                    }
+                    ThorCommand.Screenshot -> if (romLoaded && Capture.supported) takeScreenshot()
+                    ThorCommand.Settings -> showSettings = true
+                    ThorCommand.States -> showStates = true
+                    ThorCommand.Controllers -> showControllers = true
+                    ThorCommand.Netplay -> showNetplay = true
+                    ThorCommand.About -> showAbout = true
+                    ThorCommand.Menu -> controlsVisible = !controlsVisible
+                    is ThorCommand.RaLogin -> raLogin(cmd.user, cmd.password)
+                    ThorCommand.RaLogout -> raLogout()
+                    is ThorCommand.RaEnabled -> raSetEnabled(cmd.on)
+                    is ThorCommand.RaHardcore -> raSetHardcore(cmd.on)
+                }
+            }
+        }
+        LaunchedEffect(raStatus, paused, turbo) {
+            ThorDualScreen.raStatusText = raStatus
+            ThorDualScreen.paused = paused
+            ThorDualScreen.turbo = turbo
         }
         // v1.8.8 "Atlas" (Workstream H): in the small PiP window, show only the
         // gameplay picture — the control bar is hidden (and the on-screen pad below).
@@ -2553,54 +2730,15 @@ private fun EmulatorScreen(
             },
             raStatus = raStatus,
             raUser = raUserName,
-            onRaLogin = { user, pass ->
-                // Off-thread, like the SAF loads: init the session at the current
-                // hardcore setting and fire the async password login. Status/toasts
-                // are polled in the emulation loop; on the LOGGED_IN edge the token
-                // is persisted and the loaded game is identified.
-                settings.raUsername = user
-                scope.launch {
-                    withContext(Dispatchers.IO) {
-                        runCatching {
-                            val ctrl = emulator.controller
-                            if (ctrl != null) {
-                                ctrl.raInit(settings.raHardcore)
-                                ctrl.raLoginPassword(user, pass)
-                                raStatus = "Logging in…"
-                            } else {
-                                raStatus = "Open a ROM first, then log in"
-                            }
-                        }
-                    }
-                }
-            },
-            onRaLogout = {
-                scope.launch {
-                    withContext(Dispatchers.IO) { runCatching { emulator.controller?.raLogout() } }
-                    settings.raToken = ""
-                    raUserName = null
-                    raStatus = "Logged out"
-                }
-            },
+            onRaLogin = { user, pass -> raLogin(user, pass) },
+            onRaLogout = { raLogout() },
             raEnabled = settings.raEnabled,
-            onRaEnabledChange = { on ->
-                settings.raEnabled = on
-                if (on) {
-                    scope.launch {
-                        withContext(Dispatchers.IO) {
-                            runCatching { emulator.controller?.raInit(settings.raHardcore) }
-                        }
-                    }
-                }
-            },
+            onRaEnabledChange = { on -> raSetEnabled(on) },
             raHardcore = settings.raHardcore,
-            onRaHardcoreChange = { hc ->
-                settings.raHardcore = hc
-                scope.launch {
-                    withContext(Dispatchers.IO) {
-                        runCatching { emulator.controller?.raSetHardcore(hc) }
-                    }
-                }
+            onRaHardcoreChange = { hc -> raSetHardcore(hc) },
+            onOpenControllers = {
+                showSettings = false
+                showControllers = true
             },
             // Play Games cloud saves (Workstreams D+E) — DISTINCT from RA above. Only
             // surfaced when the Play Games build is active (BuildConfig.PGS_ENABLED).
@@ -2765,10 +2903,14 @@ private fun EmulatorScreen(
     LaunchedEffect(Unit) {
         val reuse = Bitmap.createBitmap(NES_WIDTH, NES_HEIGHT, Bitmap.Config.ARGB_8888)
         val pixels = IntArray(NES_WIDTH * NES_HEIGHT)
-        val audio = AudioPlayer(
+        var audio = AudioPlayer(
             48_000,
             context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager,
+            settings.audioLatency.frames,
         )
+        // AYN Thor build: the buffer size the track was built with; a changed Audio
+        // buffer setting rebuilds the track at the next frame.
+        var audioLatency = settings.audioLatency
         // RetroAchievements is polled at a low cadence (every ~15 frames) — toasts
         // and login status don't need per-frame granularity, and skipping the FFI
         // round-trips keeps the hot path clean when RA is off.
@@ -2803,6 +2945,16 @@ private fun EmulatorScreen(
                         delay(50)
                         continue
                     }
+                    if (settings.audioLatency != audioLatency) {
+                        audioLatency = settings.audioLatency
+                        audio.release()
+                        audio = AudioPlayer(
+                            48_000,
+                            context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager,
+                            audioLatency.frames,
+                        )
+                    }
+                    audio.setMasterVolume(settings.masterVolume)
                     audio.resume()
                     val saver = emulator.battery
                     if (saver != null && ++batteryFrame >= 60) {

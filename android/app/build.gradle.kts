@@ -33,6 +33,13 @@ val builtAbis: List<String> =
         ?.takeIf { it.isNotEmpty() }
         ?: listOf("arm64-v8a", "x86_64")
 val shipAbi = "arm64-v8a"
+// ABIs the release APK packages: `shipAbi` unless `-PreleaseAbis=a,b` overrides it
+// (AYN Thor CI builds an x86_64 + arm64 release copy for the emulator smoke test).
+val releaseAbis: List<String> =
+    (findProperty("releaseAbis") as? String)
+        ?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
+        ?.takeIf { it.isNotEmpty() }
+        ?: listOf(shipAbi)
 
 // What cargo-ndk compiles: every packaged ABI plus `shipAbi`, which is always
 // built because `uniffiBindgen` generates the Kotlin bindings from the arm64
@@ -166,7 +173,7 @@ android {
             // Rust core while still giving readable function names. The packaged `.so`
             // itself stays stripped (R8 never touches it; only the symbol file is uploaded).
             ndk {
-                abiFilters += shipAbi
+                abiFilters += releaseAbis
                 debugSymbolLevel = "SYMBOL_TABLE"
             }
             // v2.0.4 "Harbor" (Android RC): wire the release signing config with a

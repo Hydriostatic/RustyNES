@@ -61,6 +61,7 @@ sleep 8
 adb shell input keyevent KEYCODE_ENTER
 sleep 20
 adb exec-out screencap -p > "$OUT/top-2.png" 2>/dev/null || true
+adb pull /sdcard/Android/data/$PKG/files/thor-menu.png "$OUT/bottom-menu.png" > /dev/null 2>&1
 adb pull /sdcard/Android/data/$PKG/files/thor-bottom.png "$OUT/bottom-screen.png" > /dev/null 2>&1 && log "bottom screen snapshot saved" || log "no bottom screen snapshot"
 # Second pass: tap the top screen's dialog away and check again after more play time.
 adb shell dumpsys window | grep -E "mCurrentFocus|mFocusedApp|mTopFocusedDisplayId|mFocusedWindow" > "$OUT/focus.txt" 2>&1

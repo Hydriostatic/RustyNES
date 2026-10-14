@@ -219,6 +219,33 @@ object ExpansionStore {
     }
 }
 
+/** One byte of the NES CPU bus (`0x0000..0xFFFF`). */
+fun interface MemoryReader {
+    fun read(addr: Int): Int
+}
+
+/**
+ * Reads the CPU bus 256 bytes at a time, only the pages an expansion actually
+ * uses, each page once per snapshot. Each page is one short bridge call, so the
+ * emulator lock is never held for long (reading all 64 KB in one call held it
+ * for thousands of side-effect-free peeks and could delay a frame).
+ */
+class PagedBus(private val fetch: (Int) -> ByteArray?) : MemoryReader {
+    private val pages = arrayOfNulls<ByteArray>(256)
+    private val tried = BooleanArray(256)
+
+    override fun read(addr: Int): Int {
+        val p = (addr ushr 8) and 0xFF
+        if (!tried[p]) {
+            tried[p] = true
+            pages[p] = runCatching { fetch(p shl 8) }.getOrNull()
+        }
+        val page = pages[p] ?: return 0
+        val i = addr and 0xFF
+        return if (i < page.size) page[i].toInt() and 0xFF else 0
+    }
+}
+
 /**
  * Evaluates an expansion's `values` against one snapshot of the NES CPU bus.
  * A value may refer to other values (sum, lookup, select, `{"value": …}`);
@@ -226,7 +253,7 @@ object ExpansionStore {
  */
 class ValueEvaluator(
     private val specs: JSONObject,
-    private val mem: ByteArray?,
+    private val mem: MemoryReader?,
     private val lastLookups: MutableMap<String, Any>,
     private val sessionSeconds: Long,
 ) {
@@ -248,6 +275,12 @@ class ValueEvaluator(
 
     fun number(name: String): Long = toNumber(get(name))
 
+    /** Evaluate every declared value now (on the calling thread), so drawing later never reads memory. */
+    fun prefetch() {
+        val it = specs.keys()
+        while (it.hasNext()) get(it.next())
+    }
+
     /** Replace `{name}` / `{name:03}` (zero-padded) in [template]. */
     fun format(template: String?): String {
         if (template.isNullOrEmpty()) return ""
@@ -267,7 +300,7 @@ class ValueEvaluator(
 
     private fun u8(addr: Long): Long {
         val m = mem ?: return 0
-        return (m[(addr and 0xFFFFL).toInt()].toInt() and 0xFF).toLong()
+        return (m.read((addr and 0xFFFFL).toInt()) and 0xFF).toLong()
     }
 
     private fun readLe(addr: Long, n: Int): Long {

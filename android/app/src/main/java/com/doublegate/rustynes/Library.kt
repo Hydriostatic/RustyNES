@@ -78,6 +78,7 @@ fun LibraryScreen(
     sort: LibrarySort,
     onOpen: () -> Unit,
     onImportFolder: () -> Unit,
+    onSettings: (() -> Unit)? = null,
     onSelectFolder: (String?, Boolean) -> Unit,
     onQueryChange: (String) -> Unit,
     onSortChange: (LibrarySort) -> Unit,
@@ -110,6 +111,9 @@ fun LibraryScreen(
             )
             TextButton(onClick = onOpen) { Text(stringResource(R.string.action_open_rom)) }
             TextButton(onClick = onImportFolder) { Text(stringResource(R.string.library_import_folder)) }
+            // AYN Thor build: Settings straight from the library (with a controller the
+            // on-screen pad and its menu are hidden).
+            if (onSettings != null) TextButton(onClick = onSettings) { Text(stringResource(R.string.action_settings)) }
         }
 
         // Search field.
