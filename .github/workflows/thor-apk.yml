@@ -1,0 +1,228 @@
+name: Thor APK
+
+# AYN Thor build of RustyNES: the standalone Android app (foss flavor), signed
+# with the debug key for sideloading, plus an emulator smoke test with a
+# simulated second display. Every run publishes the APKs, logs and the smoke
+# test results to the `thor-builds` branch (overwritten each run), so they can
+# be fetched with plain git.
+on:
+  push:
+    branches: [thor]
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: thor-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NDK_VERSION: "30.0.16248370"
+  CARGO_TERM_COLOR: never
+
+jobs:
+  apk:
+    name: Build APK
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/rust-setup
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+          apt: "false"
+          cache-key: thor-apk
+
+      - uses: taiki-e/cache-cargo-install-action@v3
+        with:
+          tool: cargo-ndk@4
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Resolve NDK
+        run: |
+          set -euo pipefail
+          sdk="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          (yes || true) | "$sdk/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" > /dev/null
+          ndk="$sdk/ndk/$NDK_VERSION"
+          test -x "$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
+          echo "ANDROID_NDK_HOME=$ndk" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ndk" >> "$GITHUB_ENV"
+
+      - uses: gradle/actions/setup-gradle@v6.4.0
+        with:
+          cache-provider: basic
+
+      - name: Record versions
+        run: |
+          mkdir -p out/logs
+          {
+            echo "commit: $GITHUB_SHA"
+            echo "upstream base: $(git log -1 --format=%H 67b2a6b76360113cf122496cc0b8a4d58fbaa122 2>/dev/null || echo 67b2a6b76360113cf122496cc0b8a4d58fbaa122)"
+            rustc --version; cargo --version; cargo ndk --version
+            java -version 2>&1 | head -1
+            echo "NDK: $NDK_VERSION"
+          } > out/logs/versions.txt
+          cat out/logs/versions.txt
+
+      # Universal debug APK (arm64-v8a + x86_64): the x86_64 half runs the emulator smoke test.
+      - name: Build universal debug APK
+        id: universal
+        working-directory: android
+        run: |
+          set -o pipefail
+          ./gradlew :app:assembleFossDebug --no-daemon --stacktrace --warning-mode all 2>&1 | tee ../out/logs/gradle-universal.log
+          cp app/build/outputs/apk/foss/debug/*.apk ../out/RustyNES-universal-debug.apk
+
+      # The deliverable: arm64-v8a only. Rust is already compiled; this only re-packages.
+      - name: Build arm64 APK
+        id: arm64
+        working-directory: android
+        run: |
+          set -o pipefail
+          ./gradlew :app:assembleFossDebug -PrustynesAbis=arm64-v8a --no-daemon --stacktrace 2>&1 | tee ../out/logs/gradle-arm64.log
+          cp app/build/outputs/apk/foss/debug/*.apk ../out/RustyNES-AYN-Thor-arm64.apk
+
+      - name: Unit tests
+        if: steps.arm64.outcome == 'success'
+        continue-on-error: true
+        working-directory: android
+        run: |
+          set -o pipefail
+          ./gradlew :app:testFossDebugUnitTest --no-daemon 2>&1 | tee ../out/logs/unit-tests.log
+          mkdir -p ../out/logs/unit-test-results
+          cp -r app/build/test-results/testFossDebugUnitTest/. ../out/logs/unit-test-results/ || true
+
+      - name: Rust tests (RetroAchievements + mobile bridge)
+        if: steps.arm64.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cargo test -p rustynes-cheevos -p rustynes-ra -p rustynes-mobile 2>&1 | tee out/logs/cargo-test.log
+
+      - name: Inspect APK
+        if: steps.arm64.outcome == 'success'
+        run: |
+          set -euo pipefail
+          bt="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          for apk in out/RustyNES-AYN-Thor-arm64.apk out/RustyNES-universal-debug.apk; do
+            echo "== $apk"
+            "$bt/aapt2" dump badging "$apk" | head -40
+            "$bt/apksigner" verify --verbose --print-certs "$apk" | head -20
+            unzip -l "$apk" | grep -E 'lib/|classes' || true
+          done > out/logs/apk-inspect.txt 2>&1
+          "$bt/aapt2" dump xmltree --file AndroidManifest.xml out/RustyNES-AYN-Thor-arm64.apk > out/logs/manifest.txt
+          unzip -o -q out/RustyNES-AYN-Thor-arm64.apk 'lib/*' -d out/apk-libs
+          r="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          for so in out/apk-libs/lib/*/*.so; do
+            echo "== $so"; file "$so"
+            "$r/llvm-nm" -D --defined-only "$so" | grep -ciE 'rc_client|uniffi_rustynes_mobile_fn_method_nescontroller_ra_' || true
+          done > out/logs/native-libs.txt 2>&1
+          rm -rf out/apk-libs
+          sha256sum out/*.apk > out/SHA256SUMS.txt
+          cat out/logs/apk-inspect.txt out/logs/native-libs.txt
+
+      - name: Build example expansions
+        if: always()
+        run: |
+          mkdir -p out/expansions
+          for d in examples/thor-expansions/*/; do
+            [ -f "$d/manifest.json" ] || continue
+            n="$(basename "$d")"
+            (cd "$d" && zip -q -r -X "$GITHUB_WORKSPACE/out/expansions/$n.exp" . -x 'README.md')
+          done
+          ls -la out/expansions || true
+
+      - name: Status
+        if: always()
+        run: |
+          {
+            echo "universal: ${{ steps.universal.outcome }}"
+            echo "arm64: ${{ steps.arm64.outcome }}"
+          } > out/logs/status.txt
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: thor-apk
+          path: out/
+          if-no-files-found: warn
+
+  smoke:
+    name: Emulator smoke test
+    needs: apk
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: thor-apk
+          path: out
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Run on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash scripts/thor-smoke.sh out/RustyNES-universal-debug.apk out/smoke
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: thor-smoke
+          path: out/smoke/
+          if-no-files-found: warn
+
+  publish:
+    name: Publish to thor-builds
+    needs: [apk, smoke]
+    if: always()
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: thor-apk
+          path: pub
+      - uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: thor-smoke
+          path: pub/smoke
+      - name: Push branch
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p pub
+          {
+            echo "run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "source commit: ${{ github.sha }}"
+            echo "apk job: ${{ needs.apk.result }}"
+            echo "smoke job: ${{ needs.smoke.result }}"
+            date -u
+          } > pub/RUN.txt
+          cd pub
+          git init -q -b thor-builds
+          git config user.name "thor-ci"
+          git config user.email "thor-ci@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Thor build ${{ github.sha }} (apk: ${{ needs.apk.result }}, smoke: ${{ needs.smoke.result }})"
+          git push -f "https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git" thor-builds
