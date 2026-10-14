@@ -21,17 +21,20 @@ adb shell settings put global overlay_display_devices 1240x1080/240
 sleep 5
 adb shell dumpsys display | grep -E 'mDisplayId=|DisplayDeviceInfo|mBaseDisplayInfo' > "$OUT/displays.txt" 2>&1
 
-# Public-domain blargg test ROM via the debug autoload path.
+# First launch lets Android create the app's external files dir itself (a dir
+# made by `adb shell mkdir` is not always accepted by the storage daemon), then
+# stop the app, drop the test ROM + expansions in, and launch again.
+adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1
+sleep 15
+adb shell am force-stop "$PKG"
+sleep 2
 ROM=tests/roms/nes-test-roms/vbl_nmi_timing/1.frame_basics.nes
-adb shell mkdir -p /sdcard/Android/data/$PKG/files
-adb push "$ROM" /sdcard/Android/data/$PKG/files/autoload.nes > /dev/null 2>&1
-# Test expansion that matches the autoload ROM by name.
+adb push "$ROM" /sdcard/Android/data/$PKG/files/autoload.nes > /dev/null 2>&1 && log "pushed autoload ROM"
 adb shell mkdir -p /sdcard/Android/data/$PKG/files/expansions
 for e in out/expansions/*.exp; do
   [ -f "$e" ] && adb push "$e" /sdcard/Android/data/$PKG/files/expansions/ > /dev/null 2>&1 && log "pushed $e"
 done
-
-adb logcat -d | grep -i "RustyNES-thor\|RustyNES-exp" > "$OUT/thor-log-prelaunch.txt" 2>&1
+adb logcat -b all -c || true
 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 > "$OUT/launch.txt" 2>&1
 log "launched"
 sleep 25
@@ -56,6 +59,9 @@ sleep 20
 adb exec-out screencap -p > "$OUT/top-2.png" 2>/dev/null || true
 adb pull /sdcard/Android/data/$PKG/files/thor-bottom.png "$OUT/bottom-screen.png" > /dev/null 2>&1 && log "bottom screen snapshot saved" || log "no bottom screen snapshot"
 # Second pass: tap the top screen's dialog away and check again after more play time.
+adb shell dumpsys window | grep -E "mCurrentFocus|mFocusedApp|mTopFocusedDisplayId|mFocusedWindow" > "$OUT/focus.txt" 2>&1
+adb shell dumpsys input | grep -iE "FocusedDisplayId|FocusedWindows|focusedWindow" >> "$OUT/focus.txt" 2>&1
+cat "$OUT/focus.txt" | tee -a "$OUT/steps.txt"
 adb logcat -b all -d > "$OUT/logcat.txt" 2>&1
 grep -E "RustyNES-thor|RustyNES-exp" "$OUT/logcat.txt" | tee "$OUT/thor-log.txt" | head -20 | tee -a "$OUT/steps.txt"
 grep -E "FATAL EXCEPTION|AndroidRuntime|RustyNES" "$OUT/logcat.txt" | head -80 > "$OUT/logcat-app.txt"
