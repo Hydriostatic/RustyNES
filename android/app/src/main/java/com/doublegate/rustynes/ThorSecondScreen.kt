@@ -524,6 +524,9 @@ class ThorSecondScreenActivity : androidx.activity.ComponentActivity() {
     /** Home / Recents pressed while the bottom screen had the focus: both screens leave. */
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
+        // Android also calls this when this screen opens one of our own file pickers
+        // (a tap started it); that is not leaving the app, so the game stays on top.
+        if (ThorDualScreen.pickerOpen) return
         ThorDualScreen.leaveTogether()
     }
 

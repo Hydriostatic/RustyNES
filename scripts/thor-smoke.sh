@@ -111,6 +111,15 @@ adb exec-out screencap -p > "$OUT/top-2.png" 2>/dev/null || true
 adb pull /sdcard/Android/data/$PKG/files/thor-menu.png "$OUT/bottom-menu.png" > /dev/null 2>&1
 adb pull /sdcard/Android/data/$PKG/files/thor-bottom.png "$OUT/bottom-screen.png" > /dev/null 2>&1 && log "bottom screen snapshot saved" || log "no bottom screen snapshot"
 # Second pass: tap the top screen's dialog away and check again after more play time.
+# "Open game" on the bottom menu: the file picker must open on display 2 while the
+# game stays on the top screen.
+adb shell input -d 2 tap 324 318
+sleep 6
+adb shell dumpsys activity activities | grep -E "Display #|topResumedActivity|ResumedActivity" > "$OUT/picker.txt" 2>&1
+if grep -A3 "Display #0" "$OUT/picker.txt" | grep -q "rustynes"; then log "RESULT: picker open, game still on the top screen"; else log "RESULT: picker open, TOP SCREEN LEFT RustyNES"; fi
+grep -iE "documentsui|DocumentsActivity|picker" "$OUT/picker.txt" | head -3 | tee -a "$OUT/steps.txt"
+adb shell input keyevent KEYCODE_BACK
+sleep 3
 # Home: both screens must leave together. (The emulator's simulated second display
 # has no home screen of its own, so Home is pressed on the main display here.)
 adb shell input -d 0 keyevent KEYCODE_HOME
