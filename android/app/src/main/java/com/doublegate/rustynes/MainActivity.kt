@@ -2112,6 +2112,13 @@ private fun EmulatorScreen(
             DeepLink.ACTION_RESUME -> DeepLink.lastPlayed(context)?.let { playGame(it) }
             DeepLink.ACTION_OPEN -> picker.launch(arrayOf("*/*"))
             DeepLink.ACTION_LIBRARY -> { /* idle screen already shows the library */ }
+            else -> if (action.startsWith(DeepLink.ACTION_PLAY_PREFIX)) {
+                // AYN Thor build: a home-screen game shortcut opens that game directly.
+                val sha = action.removePrefix(DeepLink.ACTION_PLAY_PREFIX)
+                GameLibrary.view(context, sort = LibrarySort.RECENT).firstOrNull { it.sha == sha }
+                    ?.let { playGame(it) }
+                    ?: run { status = "That game is no longer in the library" }
+            }
         }
         host.deepLinkState.value = null
     }
@@ -2284,6 +2291,7 @@ private fun EmulatorScreen(
             },
             onSetBoxArt = { findBoxArt(it) },
             onMoveToFolder = { folderTarget = it },
+            onAddShortcut = { GameShortcuts.pin(context, it) },
             onRemove = {
                 GameLibrary.remove(context, it.sha)
                 libraryVersion++
@@ -3164,6 +3172,10 @@ private fun EmulatorScreen(
                         // Lua: drain the script's print/log output (cheap when empty).
                         if (scriptLoaded) logLines = ctrl.drainScriptLog()
                     }
+                    // AYN Thor build: Close game clears `frame` while this frame was being
+                    // emulated off-thread; publishing it afterwards froze the last picture
+                    // on screen instead of returning to the library. Drop it.
+                    if (emulator.controller !== ctrl) continue
                     if (producedFrame) {
                         val presented: Bitmap
                         if (usedHd && hdBmp != null) {

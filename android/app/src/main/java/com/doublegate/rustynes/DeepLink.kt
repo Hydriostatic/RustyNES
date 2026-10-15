@@ -25,6 +25,9 @@ object DeepLink {
     /** Show the box-art library (idle screen). */
     const val ACTION_LIBRARY = "library"
 
+    /** AYN Thor build: `play:<sha>` opens that library game (home-screen shortcuts). */
+    const val ACTION_PLAY_PREFIX = "play:"
+
     /** Build an [Intent] that launches the app to [action]. */
     fun intent(context: Context, action: String): Intent =
         Intent(context, MainActivity::class.java).apply {

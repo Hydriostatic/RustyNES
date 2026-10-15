@@ -86,6 +86,7 @@ fun LibraryScreen(
     onToggleFavorite: (GameEntry) -> Unit,
     onSetBoxArt: (GameEntry) -> Unit,
     onMoveToFolder: (GameEntry) -> Unit,
+    onAddShortcut: (GameEntry) -> Unit = {},
     onRemove: (GameEntry) -> Unit,
     modifier: Modifier = Modifier,
     surfaceColor: Color = MaterialTheme.colorScheme.surface,
@@ -196,6 +197,7 @@ fun LibraryScreen(
                         onToggleFavorite = { onToggleFavorite(entry) },
                         onSetBoxArt = { onSetBoxArt(entry) },
                         onMoveToFolder = { onMoveToFolder(entry) },
+                        onAddShortcut = { onAddShortcut(entry) },
                         onRemove = { onRemove(entry) },
                     )
                 }
@@ -223,6 +225,7 @@ private fun GameTile(
     onToggleFavorite: () -> Unit,
     onSetBoxArt: () -> Unit,
     onMoveToFolder: () -> Unit,
+    onAddShortcut: () -> Unit,
     onRemove: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -263,7 +266,7 @@ private fun GameTile(
                     contentScale = ContentScale.Crop,
                 )
             } else {
-                PlaceholderArt(entry.name)
+                PlaceholderArt(gameTitle(entry.name))
             }
             // Favorite star overlay (filled = starred). Tap toggles directly.
             Box(
@@ -301,9 +304,11 @@ private fun GameTile(
                     text = { Text(stringResource(R.string.library_set_box_art)) },
                     onClick = { menuOpen = false; onSetBoxArt() },
                 )
+                // AYN Thor build: folders are gone from the menu; a home-screen
+                // shortcut that starts this game directly takes their place.
                 DropdownMenuItem(
-                    text = { Text(stringResource(R.string.library_move_to_folder)) },
-                    onClick = { menuOpen = false; onMoveToFolder() },
+                    text = { Text("Add to home screen") },
+                    onClick = { menuOpen = false; onAddShortcut() },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.library_remove)) },
@@ -312,7 +317,7 @@ private fun GameTile(
             }
         }
         Text(
-            entry.name,
+            gameTitle(entry.name),
             color = MaterialTheme.colorScheme.onSurface,
             fontSize = 12.sp,
             maxLines = 2,
@@ -467,3 +472,7 @@ fun ImportProgressBanner(done: Int, total: Int, modifier: Modifier = Modifier) {
         )
     }
 }
+
+/** AYN Thor build: a game's name as shown, without its file extension (".nes", ".zip", ...). */
+fun gameTitle(name: String): String =
+    name.replace(Regex("\\.(nes|unf|unif|fds|nsf|nsfe|zip|7z)$", RegexOption.IGNORE_CASE), "")
