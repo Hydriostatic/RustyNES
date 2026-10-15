@@ -48,6 +48,19 @@ class Expansion(
     val pixelScreen: JSONObject? = manifest.optJSONObject("pixel_screen")
     val values: JSONObject = manifest.optJSONObject("values") ?: JSONObject()
 
+    /** Whether this expansion draws a panel (some only carry a picture position). */
+    val hasPanel: Boolean get() = screen != null || pixelScreen != null
+
+    /** The game's saved picture zoom and position ("display" in the manifest), if any. */
+    fun display(): PictureAdjust? {
+        val d = manifest.optJSONObject("display") ?: return null
+        return PictureAdjust(
+            zoom = (d.optDouble("zoom", 100.0) / 100.0).toFloat().coerceIn(1f, 2f),
+            x = d.optDouble("x", 0.0).toFloat().coerceIn(-1f, 1f),
+            y = d.optDouble("y", 0.0).toFloat().coerceIn(-1f, 1f),
+        )
+    }
+
     fun image(path: String?): Bitmap? = if (path.isNullOrEmpty()) null else images[path.trimStart('/')]
 
     /** Does this expansion belong to the given ROM? */
@@ -99,14 +112,17 @@ class RomIdentity(val name: String?, bytes: ByteArray) {
         val body = headerless(bytes)
         val variants = if (body === bytes) listOf(bytes) else listOf(bytes, body)
         hashes = mapOf(
-            "md5" to variants.map { hex(MessageDigest.getInstance("MD5").digest(it)) }.toSet(),
-            "sha1" to variants.map { hex(MessageDigest.getInstance("SHA-1").digest(it)) }.toSet(),
-            "sha256" to variants.map { hex(MessageDigest.getInstance("SHA-256").digest(it)) }.toSet(),
+            "md5" to variants.map { hex(MessageDigest.getInstance("MD5").digest(it)) }.toCollection(LinkedHashSet()),
+            "sha1" to variants.map { hex(MessageDigest.getInstance("SHA-1").digest(it)) }.toCollection(LinkedHashSet()),
+            "sha256" to variants.map { hex(MessageDigest.getInstance("SHA-256").digest(it)) }.toCollection(LinkedHashSet()),
         )
-        crcs = variants.map { b -> CRC32().also { it.update(b) }.value.let { "%08X".format(it) } }.toSet()
+        crcs = variants.map { b -> CRC32().also { it.update(b) }.value.let { "%08X".format(it) } }.toCollection(LinkedHashSet())
     }
 
     val headerlessCrc: String get() = crcs.last()
+
+    /** SHA-256 of the ROM without its header (what an expansion made on the device matches). */
+    val headerlessSha256: String get() = hashes.getValue("sha256").last()
 
     companion object {
         /** The ROM without its iNES/NES 2.0 header (and trainer), or the same array if it has none. */
@@ -175,6 +191,84 @@ object ExpansionStore {
             invalidate()
             return all(context).first { it.file == dest }
         } finally {
+            tmp.delete()
+        }
+    }
+
+    /**
+     * Save a game's picture zoom and position into its expansion: the existing one
+     * (manifest rewritten, every other file kept, version bumped, as every change to
+     * an expansion must), or a new picture-only expansion that matches this ROM by
+     * its headerless SHA-256. Returns the saved expansion's id.
+     */
+    fun saveDisplay(context: Context, exp: Expansion?, rom: RomIdentity, title: String, adj: PictureAdjust): String {
+        val display = JSONObject()
+            .put("zoom", Math.round(adj.zoom * 100f))
+            .put("x", Math.round(adj.x * 100f) / 100.0)
+            .put("y", Math.round(adj.y * 100f) / 100.0)
+        if (exp != null) {
+            val m = JSONObject(exp.manifest.toString())
+            m.put("display", display)
+            m.put("version", bumpVersion(m.optString("version")))
+            rewrite(exp.file, m)
+            invalidate()
+            return exp.id
+        }
+        val id = "display-" + rom.headerlessSha256.take(12)
+        val m = JSONObject()
+            .put("format", 1)
+            .put("id", id)
+            .put("name", "$title - picture")
+            .put("game", title)
+            .put("version", "1.0")
+            .put("author", "RustyNES (made on device)")
+            .put("match", JSONObject().put("sha256", rom.headerlessSha256))
+            .put("display", display)
+        val f = File(dir(context), "$id.exp")
+        java.util.zip.ZipOutputStream(f.outputStream()).use { z ->
+            z.putNextEntry(java.util.zip.ZipEntry("manifest.json"))
+            z.write(m.toString(2).toByteArray())
+            z.closeEntry()
+        }
+        invalidate()
+        return id
+    }
+
+    /** Copy an installed expansion (with everything saved in it) to [uri]. */
+    fun export(context: Context, exp: Expansion, uri: Uri) {
+        context.contentResolver.openOutputStream(uri).use { out ->
+            requireNotNull(out) { "Couldn't write the file" }
+            exp.file.inputStream().use { it.copyTo(out) }
+        }
+    }
+
+    /** "1.6" -> "1.7", "2" -> "2.1", "" -> "1.1". */
+    fun bumpVersion(v: String): String {
+        val parts = v.split('.').mapNotNull { it.toIntOrNull() }
+        return when {
+            parts.isEmpty() -> "1.1"
+            parts.size == 1 -> "${parts[0]}.1"
+            else -> (parts.dropLast(1) + (parts.last() + 1)).joinToString(".")
+        }
+    }
+
+    private fun rewrite(file: File, manifest: JSONObject) {
+        val tmp = File(file.parentFile, file.name + ".tmp")
+        ZipFile(file).use { src ->
+            java.util.zip.ZipOutputStream(tmp.outputStream()).use { z ->
+                z.putNextEntry(java.util.zip.ZipEntry("manifest.json"))
+                z.write(manifest.toString(2).toByteArray())
+                z.closeEntry()
+                for (e in src.entries()) {
+                    if (e.name == "manifest.json" || e.isDirectory) continue
+                    z.putNextEntry(java.util.zip.ZipEntry(e.name))
+                    src.getInputStream(e).use { it.copyTo(z) }
+                    z.closeEntry()
+                }
+            }
+        }
+        if (!tmp.renameTo(file)) {
+            tmp.copyTo(file, overwrite = true)
             tmp.delete()
         }
     }
@@ -479,3 +573,11 @@ class ValueEvaluator(
         }
     }
 }
+
+/**
+ * A game's picture zoom (1.0-2.0) and position. [x] / [y] run from -1 to 1: the
+ * picture moved fully left / up to fully right / down. When the zoomed picture is
+ * larger than the screen this picks which part shows; when it is smaller it places
+ * the picture in the free space.
+ */
+data class PictureAdjust(val zoom: Float, val x: Float, val y: Float)

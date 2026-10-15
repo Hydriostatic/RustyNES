@@ -95,6 +95,9 @@ object ThorDualScreen {
     /** Dialog/sheet content the top screen sends to the bottom one (see ThorPortal). */
     val portals = androidx.compose.runtime.mutableStateListOf<Pair<Any, @androidx.compose.runtime.Composable () -> Unit>>()
 
+    /** The running game's picture zoom/position (from its expansion, or being adjusted). */
+    val pictureAdjust = androidx.compose.runtime.mutableStateOf<PictureAdjust?>(null)
+
     /** The top screen's Material colors, so the bottom's dialogs match. */
     val colorScheme = androidx.compose.runtime.mutableStateOf<androidx.compose.material3.ColorScheme?>(null)
 
@@ -371,7 +374,7 @@ class ThorSecondScreenActivity : androidx.activity.ComponentActivity() {
     private var workerHandler: Handler? = null
 
     @Volatile private var identityFor: ByteArray? = null
-    private var identity: RomIdentity? = null
+    @Volatile private var identity: RomIdentity? = null
     @Volatile private var active: Expansion? = null
     @Volatile private var expVisible = false
     private var userChoseHome = false
@@ -812,8 +815,11 @@ class ThorSecondScreenActivity : androidx.activity.ComponentActivity() {
 
     private fun onExpansionResolved(exp: Expansion?) {
         active = exp
-        expView.expansion = exp
-        if (exp != null && !userChoseHome) showExpansion() else if (exp == null) showHome()
+        // The game's saved picture zoom/position (none when no game is running).
+        ThorDualScreen.pictureAdjust.value = if (identityFor == null) null else exp?.display()
+        val panel = exp?.takeIf { it.hasPanel }
+        expView.expansion = panel
+        if (panel != null && !userChoseHome) showExpansion() else if (panel == null) showHome()
         refreshDynamic()
     }
 
@@ -917,6 +923,24 @@ class ThorSecondScreenActivity : androidx.activity.ComponentActivity() {
                 settings()?.let { it.zoomFill = !it.zoomFill }
             },
         ))
+
+        // Picture position for the running game: zoom, then move it on X / Y. Saved in
+        // the game's expansion (a picture-only one is made if it has none), so it comes
+        // back with the game and travels with an exported .exp.
+        home.addView(header("Picture position (this game)"))
+        home.addView(grid(
+            action("Zoom −", enabledIf = { hasGame }) { adjust { it.copy(zoom = (it.zoom - 0.05f).coerceIn(1f, 2f)) } },
+            info { ThorDualScreen.pictureAdjust.value?.let { "Zoom ${Math.round(it.zoom * 100)}%" } ?: "Zoom: global" },
+            action("Zoom +", enabledIf = { hasGame }) { adjust { it.copy(zoom = (it.zoom + 0.05f).coerceIn(1f, 2f)) } },
+            action("Move ←", enabledIf = { hasGame }) { adjust { it.copy(x = (it.x - 0.05f).coerceIn(-1f, 1f)) } },
+            action("Move →", enabledIf = { hasGame }) { adjust { it.copy(x = (it.x + 0.05f).coerceIn(-1f, 1f)) } },
+            action("Move ↑", enabledIf = { hasGame }) { adjust { it.copy(y = (it.y - 0.05f).coerceIn(-1f, 1f)) } },
+            action("Move ↓", enabledIf = { hasGame }) { adjust { it.copy(y = (it.y + 0.05f).coerceIn(-1f, 1f)) } },
+            action("Centre", enabledIf = { hasGame }) { adjust { it.copy(x = 0f, y = 0f) } },
+            action("Save to expansion", enabledIf = { hasGame }) { saveDisplay() },
+            action("Export expansion…", enabledIf = { active != null }) { exportExpansion() },
+        ))
+        home.addView(label("Zoom first, then move the picture. Save keeps it for this game in its expansion; Export saves that .exp file.", 26f, MUTED))
 
         // Audio
         home.addView(header("Audio"))
@@ -1033,10 +1057,49 @@ class ThorSecondScreenActivity : androidx.activity.ComponentActivity() {
             if (s != null && userField.text.isEmpty() && s.raUsername.isNotEmpty() && !userField.hasFocus()) {
                 userField.setText(s.raUsername)
             }
-            showPanelBtn.visibility = if (active != null && !expVisible) View.VISIBLE else View.GONE
+            showPanelBtn.visibility = if (active?.hasPanel == true && !expVisible) View.VISIBLE else View.GONE
             active?.let { showPanelBtn.text = "Show ${it.name}" }
         }
         refreshExpansions()
+    }
+
+    /** Change the running game's picture, starting from the global zoom if it has none. */
+    private fun adjust(change: (PictureAdjust) -> PictureAdjust) {
+        val cur = ThorDualScreen.pictureAdjust.value
+            ?: PictureAdjust(((settings()?.zoomPercent ?: 100) / 100f).coerceIn(1f, 2f), 0f, 0f)
+        ThorDualScreen.pictureAdjust.value = change(cur)
+    }
+
+    private fun saveDisplay() {
+        val rom = identity ?: return toast("Open a game first")
+        val adj = ThorDualScreen.pictureAdjust.value ?: return toast("Zoom or move the picture first")
+        val title = gameTitle(ThorDualScreen.romName ?: "NES game")
+        val exp = active
+        Thread {
+            val msg = runCatching {
+                ExpansionStore.saveDisplay(this, exp, rom, title, adj)
+                ThorDualScreen.expansionsChanged++
+                if (exp != null) "Saved in ${exp.name}" else "Saved in a new expansion for $title"
+            }.getOrElse { "Couldn't save: ${it.message}" }
+            runOnUiThread { toast(msg) }
+        }.start()
+    }
+
+    private fun exportExpansion() {
+        val exp = active ?: return toast("This game has no expansion yet. Save the picture first.")
+        val ok = launchFor(
+            androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream"),
+            "${exp.id}.exp",
+        ) { uri ->
+            if (uri != null) {
+                Thread {
+                    val msg = runCatching { ExpansionStore.export(this, exp, uri); "Exported ${exp.name}" }
+                        .getOrElse { "Export failed: ${it.message}" }
+                    runOnUiThread { toast(msg) }
+                }.start()
+            }
+        }
+        if (!ok) toast("No file picker available")
     }
 
     private fun refreshDynamic() {

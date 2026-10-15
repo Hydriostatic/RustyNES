@@ -3,6 +3,7 @@ package com.doublegate.rustynes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -111,7 +112,7 @@ fun zoomFactor(settings: AppSettings, maxW: Int, maxH: Int, g: PictureGeometry):
  * on-screen size is the part that fits, and the source rectangle shrinks by the
  * same proportion, so pixels keep the chosen aspect at the larger size.
  */
-fun zoomedGeometry(g: PictureGeometry, zoom: Float, maxW: Int, maxH: Int): PictureGeometry {
+fun zoomedGeometry(g: PictureGeometry, zoom: Float, maxW: Int, maxH: Int, panX: Float = 0f, panY: Float = 0f): PictureGeometry {
     if (zoom <= 1f) return g
     val fullW = g.dstW * zoom
     val fullH = g.dstH * zoom
@@ -119,9 +120,10 @@ fun zoomedGeometry(g: PictureGeometry, zoom: Float, maxW: Int, maxH: Int): Pictu
     val visH = min(fullH, maxH.toFloat())
     val sw = max(1, (g.srcW * visW / fullW).roundToInt())
     val sh = max(1, (g.srcH * visH / fullH).roundToInt())
+    // Picture moved left (panX < 0) shows more of its right side, and so on.
     return PictureGeometry(
-        g.srcX + (g.srcW - sw) / 2,
-        g.srcY + (g.srcH - sh) / 2,
+        g.srcX + ((g.srcW - sw) * (1f - panX.coerceIn(-1f, 1f)) / 2f).roundToInt(),
+        g.srcY + ((g.srcH - sh) * (1f - panY.coerceIn(-1f, 1f)) / 2f).roundToInt(),
         sw,
         sh,
         visW.roundToInt(),
@@ -152,8 +154,14 @@ fun NesPicture(
         if (g.dstW <= 0 || g.dstH <= 0) return@BoxWithConstraints
         // Zoom (100-200%): enlarge the fitted picture and keep the centre part that
         // fits the screen. "Fill screen" picks the zoom that covers the whole area.
-        val z = zoomFactor(settings, constraints.maxWidth, constraints.maxHeight, g)
-        val v = zoomedGeometry(g, z, constraints.maxWidth, constraints.maxHeight)
+        // A game's own zoom and position (saved in its expansion, or being adjusted on
+        // the bottom screen) wins over the global zoom.
+        val adj = ThorDualScreen.pictureAdjust.value
+        val z = adj?.zoom?.coerceIn(1f, MAX_ZOOM) ?: zoomFactor(settings, constraints.maxWidth, constraints.maxHeight, g)
+        val v = zoomedGeometry(g, z, constraints.maxWidth, constraints.maxHeight, adj?.x ?: 0f, adj?.y ?: 0f)
+        // Smaller than the area on an axis: the position moves the picture in the free space.
+        val offX = ((constraints.maxWidth - v.dstW) / 2f * (adj?.x ?: 0f)).roundToInt()
+        val offY = ((constraints.maxHeight - v.dstH) / 2f * (adj?.y ?: 0f)).roundToInt()
         val d = LocalDensity.current
         val mode = settings.scaleMode
         val tv = settings.tvBlend
@@ -167,7 +175,7 @@ fun NesPicture(
         }
         val useShader = shader != null && (mode != ScaleMode.Pixel || tv)
         Canvas(
-            modifier = with(d) { Modifier.size(v.dstW.toDp(), v.dstH.toDp()) }.then(effect),
+            modifier = with(d) { Modifier.offset { IntOffset(offX, offY) }.size(v.dstW.toDp(), v.dstH.toDp()) }.then(effect),
         ) {
             if (useShader && shader != null && android.os.Build.VERSION.SDK_INT >= 33) {
                 val kx = when (mode) {

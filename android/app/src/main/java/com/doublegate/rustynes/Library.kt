@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -126,31 +127,8 @@ fun LibraryScreen(
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         )
 
-        // Collection filter: All / Favorites / + user folders.
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            FilterChip(
-                selected = !favoritesOnly && selectedFolder == null,
-                onClick = { onSelectFolder(null, false) },
-                label = { Text(stringResource(R.string.library_all)) },
-            )
-            FilterChip(
-                selected = favoritesOnly,
-                onClick = { onSelectFolder(null, true) },
-                label = { Text(stringResource(R.string.library_favorites)) },
-            )
-            folders.forEach { f ->
-                FilterChip(
-                    selected = !favoritesOnly && selectedFolder == f,
-                    onClick = { onSelectFolder(f, false) },
-                    label = { Text(f) },
-                )
-            }
-        }
-
-        // Sort selector.
+        // AYN Thor build: one row - Sort on the left, All / Favorites on the right
+        // (folders are no longer offered).
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -166,6 +144,17 @@ fun LibraryScreen(
             SortChip(stringResource(R.string.library_sort_favorite), sort == LibrarySort.FAVORITE) {
                 onSortChange(LibrarySort.FAVORITE)
             }
+            Spacer(modifier = Modifier.weight(1f))
+            FilterChip(
+                selected = !favoritesOnly,
+                onClick = { onSelectFolder(null, false) },
+                label = { Text(stringResource(R.string.library_all)) },
+            )
+            FilterChip(
+                selected = favoritesOnly,
+                onClick = { onSelectFolder(null, true) },
+                label = { Text(stringResource(R.string.library_favorites)) },
+            )
         }
 
         if (entries.isEmpty()) {
