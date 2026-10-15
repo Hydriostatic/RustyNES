@@ -161,10 +161,30 @@ class AppSettings(context: Context) {
         get() = _overscan.value
         set(v) { _overscan.value = v; prefs.edit().putInt("overscan", v.ordinal).apply() }
 
-    private val _smoothScaling = mutableStateOf(prefs.getBoolean("smoothScaling", false))
-    var smoothScaling: Boolean
-        get() = _smoothScaling.value
-        set(v) { _smoothScaling.value = v; prefs.edit().putBoolean("smoothScaling", v).apply() }
+    /** Picture zoom, 100-200 %. */
+    private val _zoomPercent = mutableStateOf(prefs.getInt("zoomPercent", 100).coerceIn(100, 200))
+    var zoomPercent: Int
+        get() = _zoomPercent.value
+        set(v) { _zoomPercent.value = v.coerceIn(100, 200); prefs.edit().putInt("zoomPercent", _zoomPercent.value).apply() }
+
+    /** Zoom just enough to fill the whole screen (up to 200 %), instead of [zoomPercent]. */
+    private val _zoomFill = mutableStateOf(prefs.getBoolean("zoomFill", false))
+    var zoomFill: Boolean
+        get() = _zoomFill.value
+        set(v) { _zoomFill.value = v; prefs.edit().putBoolean("zoomFill", v).apply() }
+
+    /** How NES pixels are enlarged (see ScaleMode). Sharp by default: even pixels, no shimmer. */
+    private val _scaleMode =
+        mutableStateOf(ScaleMode.entries.getOrElse(prefs.getInt("scaleMode", 0)) { ScaleMode.Sharp })
+    var scaleMode: ScaleMode
+        get() = _scaleMode.value
+        set(v) { _scaleMode.value = v; prefs.edit().putInt("scaleMode", v.ordinal).apply() }
+
+    /** Blend neighbouring pixels sideways like a TV's composite signal (smooths dithering). */
+    private val _tvBlend = mutableStateOf(prefs.getBoolean("tvBlend", true))
+    var tvBlend: Boolean
+        get() = _tvBlend.value
+        set(v) { _tvBlend.value = v; prefs.edit().putBoolean("tvBlend", v).apply() }
 
     // Audio (AYN Thor build). Master volume is the output track's gain; the
     // channel gains and filter go to the core's mixer (never saved in a state).
@@ -589,7 +609,27 @@ fun SettingsSheet(
                 }
             }
             ToggleRow("Integer scaling (sharpest pixels)", settings.integerScale) { settings.integerScale = it }
-            ToggleRow("Smooth scaling", settings.smoothScaling) { settings.smoothScaling = it }
+            Text("Scaling")
+            Row(
+                modifier = Modifier.fillMaxWidth().selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ScaleMode.entries.forEach { m ->
+                    FilterChip(
+                        selected = settings.scaleMode == m,
+                        onClick = { settings.scaleMode = m },
+                        label = { Text(m.label) },
+                    )
+                }
+            }
+            Text(settings.scaleMode.hint)
+            ToggleRow("TV blend (smooths dithered floors and shading, like a CRT TV)", settings.tvBlend) { settings.tvBlend = it }
+            ToggleRow("Zoom to fill the screen (up to 200%)", settings.zoomFill) { settings.zoomFill = it }
+            if (!settings.zoomFill) {
+                ParamSlider("Zoom", settings.zoomPercent.toFloat(), 100f..200f, "%.0f%%") { v ->
+                    settings.zoomPercent = (v / 5f).roundToInt() * 5
+                }
+            }
 
             // Audio (AYN Thor build): output volume, buffer size, the core's analog
             // filter model and per-channel mixer. Mixer + filter are applied to the

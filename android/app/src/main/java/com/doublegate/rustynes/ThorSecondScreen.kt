@@ -904,8 +904,17 @@ class ThorSecondScreenActivity : androidx.activity.ComponentActivity() {
                 s.overscan = OverscanCrop.entries[(s.overscan.ordinal + 1) % OverscanCrop.entries.size]
             },
             cycler({ "Filter: " + (settings()?.filter?.label ?: "-") }) { s -> s.filter = s.filter.next() },
-            toggle({ "Smooth scaling" }, { settings()?.smoothScaling == true }) {
-                settings()?.let { it.smoothScaling = !it.smoothScaling }
+            cycler({ "Scaling: " + (settings()?.scaleMode?.label ?: "-") }) { s ->
+                s.scaleMode = ScaleMode.entries[(s.scaleMode.ordinal + 1) % ScaleMode.entries.size]
+            },
+            toggle({ "TV blend" }, { settings()?.tvBlend == true }) {
+                settings()?.let { it.tvBlend = !it.tvBlend }
+            },
+            action("Zoom −") { settings()?.let { it.zoomFill = false; it.zoomPercent -= 10 } },
+            info { settings()?.let { if (it.zoomFill) "Zoom: fill" else "Zoom ${it.zoomPercent}%" } ?: "Zoom" },
+            action("Zoom +") { settings()?.let { it.zoomFill = false; it.zoomPercent += 10 } },
+            toggle({ "Fill screen" }, { settings()?.zoomFill == true }) {
+                settings()?.let { it.zoomFill = !it.zoomFill }
             },
         ))
 
