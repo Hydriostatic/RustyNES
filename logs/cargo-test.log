@@ -1,0 +1,116 @@
+   Compiling rustynes-gamedb v3.1.0 (/home/runner/work/RustyNES/RustyNES/crates/rustynes-gamedb)
+   Compiling rustynes-ra v3.1.0 (/home/runner/work/RustyNES/RustyNES/crates/rustynes-ra)
+   Compiling rustynes-cheevos v3.1.0 (/home/runner/work/RustyNES/RustyNES/crates/rustynes-cheevos)
+   Compiling rustynes-mobile v3.1.0 (/home/runner/work/RustyNES/RustyNES/crates/rustynes-mobile)
+    Finished `test` profile [optimized + debuginfo] target(s) in 9.72s
+     Running unittests src/lib.rs (target/debug/deps/rustynes_cheevos-fcbea582c78b3c70)
+
+running 9 tests
+test ffi::abi_guard::struct_sizes_match_c ... ok
+test http::tests::ra_user_agent_identifies_rustynes_with_versions ... ok
+test memory::tests::system_ram_identity ... ok
+test memory::tests::out_of_range_is_none ... ok
+test memory::tests::wram_window_boundaries ... ok
+test smoke::create_drive_destroy ... ok
+test smoke::nested_read_guard_restores ... ok
+test http::tests::a_busy_worker_is_detached_not_joined ... ok
+test smoke::login_completion_fires_on_transport_error ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+
+     Running unittests src/lib.rs (target/debug/deps/rustynes_mobile-f31592d727f73976)
+
+running 53 tests
+test tests::a_bios_of_the_wrong_size_is_refused ... ok
+test tests::a_bios_set_once_serves_later_disk_loads ... ok
+test tests::a_disk_loads_with_a_host_bios_and_swaps_sides ... ok
+test tests::a_disk_without_a_bios_names_the_missing_bios ... ok
+test tests::a_cart_without_a_battery_has_nothing_to_persist ... ok
+test tests::a_battery_save_of_the_wrong_size_is_refused ... ok
+test tests::a_battery_save_round_trips_through_the_bridge ... ok
+test tests::a_dual_cabinet_has_no_save_for_a_power_cycle_to_lose ... ok
+test tests::a_movie_older_than_format_3_is_refused_without_a_warning ... ok
+test tests::a_dual_cabinet_refuses_the_single_console_features ... ok
+test tests::a_panic_in_an_ffi_body_is_caught_with_its_message ... ok
+test tests::a_movie_or_netplay_session_refuses_timeline_changes ... ok
+test tests::a_panic_mid_frame_freezes_the_game_instead_of_reaching_the_host ... ok
+test tests::a_panic_while_compositing_an_hd_frame_is_contained ... ok
+test tests::a_power_on_movie_does_not_reach_the_save ... ok
+test tests::a_refused_movie_leaves_the_save_live ... ok
+test tests::an_nsf_loads_and_selects_a_track ... ok
+test tests::boots_and_runs_a_frame ... ok
+test tests::button_press_release_preserves_other_bits ... ok
+test tests::cabinet_palette_and_four_score_reach_both_consoles_and_survive_power_cycle ... ok
+test tests::a_dual_cabinet_power_cycles_as_a_pair ... ok
+test tests::debug_cpu_state_is_observational ... ok
+test tests::debug_disassemble_decodes_reset_loop ... ok
+test tests::debug_read_memory_caps_length_and_reads_prg ... ok
+test tests::fm2_import_happy_path_transcodes_and_plays ... ok
+test tests::foreign_movie_import_errors_gracefully ... ok
+test tests::default_palette_argb_is_the_cores_lut ... ok
+test tests::genie_codes_round_trip ... ok
+test tests::genie_rejects_bad_code ... ok
+test tests::held_input_reaches_the_core_at_the_next_frame ... ok
+test tests::host_warning_code_maps_to_exact_legacy_english ... ok
+test tests::info_reports_nrom ... ok
+test tests::input_does_not_wait_for_the_frame_lock ... ok
+test tests::invalid_port_is_rejected ... ok
+test tests::hardcore_blocks_load_state_only ... ok
+test tests::load_rom_clears_netplay_session ... ok
+test tests::load_state_preserves_held_input ... ok
+test tests::netplay_host_binds_and_reports_connecting ... ok
+test tests::netplay_idle_by_default ... ok
+test tests::netplay_join_rejects_bad_address ... ok
+test tests::a_rom_over_the_size_cap_is_refused_at_the_bridge ... ok
+test tests::ra_session_created_lazily_and_hardcore_round_trips ... ok
+test tests::raw_ram_poke_peek_round_trips ... ok
+test tests::recovering_from_a_panic_ends_netplay_and_warns_once ... ok
+test tests::rejects_garbage_rom ... ok
+test tests::rom_identity_is_the_cores_and_ignores_the_header_and_the_zip ... ok
+test tests::a_dual_cabinet_runs_two_screens_and_snapshots_the_pair ... ok
+test tests::save_state_round_trips ... ok
+test tests::the_bridge_applies_the_game_database_corrections ... ok
+test tests::lazy_session_defaults_softcore ... ok
+test tests::two_controllers_handshake_and_stay_in_sync ... ok
+test tests::room::two_controllers_host_join_by_room_code ... ok
+test tests::ra_token_login_surfaces_error_toast ... ok
+
+test result: ok. 53 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.64s
+
+     Running unittests src/bin/uniffi-bindgen.rs (target/debug/deps/uniffi_bindgen-7e2e2b021a024ad3)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/rustynes_ra-2aad2aadaf158209)
+
+running 7 tests
+test tests::hardcore_blocks_mirrors_flag ... ok
+test tests::game_sha_round_trips ... ok
+test tests::can_pause_unblocked_in_softcore ... ok
+test tests::hud_state_caps_and_clears ... ok
+test tests::hud_transients_expire ... ok
+test tests::toasts_expire_and_cap ... ok
+test tests::auto_login_requires_enabled_user_and_token ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+   Doc-tests rustynes_cheevos
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests rustynes_mobile
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests rustynes_ra
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

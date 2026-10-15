@@ -1,0 +1,26 @@
+  Window #0 Window{d321842 u0 ScreenDecorOverlayBottom}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{51c13ac 829:u0a10168} mClient=android.os.BinderProxy@79e9324
+  Window #1 Window{7329e51 u0 ScreenDecorOverlay}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{51c13ac 829:u0a10168} mClient=android.os.BinderProxy@26af0db
+  Window #2 Window{154a9c4 u0 Overlay #1: 1240x1080, 240 dpi}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{c04db80 517:1000} mClient=android.view.ViewRootImpl$W@2749456
+  Window #3 Window{821f2b u0 NotificationShade}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{51c13ac 829:u0a10168} mClient=android.os.BinderProxy@c772a04
+  Window #4 Window{75a2dc5 u0 StatusBar}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{51c13ac 829:u0a10168} mClient=android.os.BinderProxy@40798fa
+  Window #5 Window{97b516e u0 ShellDropTarget}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{51c13ac 829:u0a10168} mClient=android.os.BinderProxy@a08a89c
+  Window #6 Window{6427243 u0 InputMethod}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{1748cb6 1470:u0a10143} mClient=android.os.BinderProxy@ffd3bf2
+  Window #7 Window{65f037a u0 com.doublegate.rustynes.debug/com.doublegate.rustynes.MainActivity}:
+    mDisplayId=0 rootTaskId=8 mSession=Session{4e83506 3827:u0a10192} mClient=android.os.BinderProxy@74f03a5
+  Window #8 Window{fece0ab u0 com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{b9a8756 1650:u0a10132} mClient=android.os.BinderProxy@cbc42fa
+  Window #9 Window{506923f u0 com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{3281d74 1087:u0a10169} mClient=android.os.BinderProxy@1d62e5e
+  Window #10 Window{3f9f408 u0 com.android.systemui.wallpapers.ImageWallpaper}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{51c13ac 829:u0a10168} mClient=android.os.BinderProxy@ae045ab
+  Window #11 Window{bd31e54 u0 com.doublegate.rustynes.debug/com.doublegate.rustynes.ThorSecondScreenActivity}:
+    mDisplayId=2 rootTaskId=9 mSession=Session{4e83506 3827:u0a10192} mClient=android.os.BinderProxy@64db9a7
+  Window #12 Window{54efe26 u0 com.doublegate.rustynes.debug/com.doublegate.rustynes.ThorSecondScreenActivity}:
+    mDisplayId=2 rootTaskId=9 mSession=Session{4e83506 3827:u0a10192} mClient=android.os.BinderProxy@61b2568

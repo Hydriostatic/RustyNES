@@ -1,0 +1,30 @@
+> Task :app:mergeFossReleaseJavaResource UP-TO-DATE
+> Task :app:mergeFossReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :app:expandFossReleaseArtProfileWildcards UP-TO-DATE
+> Task :app:produceFossReleaseComposeMapping UP-TO-DATE
+> Task :app:reportFossReleaseComposeMappingErrors
+> Task :app:generateFossReleaseLintVitalReportModel UP-TO-DATE
+> Task :app:minifyFossReleaseWithR8 UP-TO-DATE
+> Task :app:mergeFossReleaseComposeMapping UP-TO-DATE
+> Task :app:convertShrunkResourcesToBinaryFossRelease UP-TO-DATE
+> Task :app:optimizeFossReleaseResources UP-TO-DATE
+> Task :app:compileFossReleaseArtProfile UP-TO-DATE
+> Task :app:lintVitalAnalyzeFossRelease
+> Task :app:lintVitalReportFossRelease
+> Task :app:lintVitalFossRelease
+> Task :app:packageFossRelease
+> Task :app:assembleFossRelease
+> Task :app:createFossReleaseApkListingFileRedirect UP-TO-DATE
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/releasex86-1792046220697.json
+
+[Incubating] Problems report is available at: file:///home/runner/work/RustyNES/RustyNES/android/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.8.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 27s
+56 actionable tasks: 7 executed, 49 up-to-date
+Configuration cache entry stored.

@@ -1,0 +1,149 @@
+== out/RustyNES-AYN-Thor-arm64.apk
+package: name='com.doublegate.rustynes' versionCode='30100' versionName='3.1.0' platformBuildVersionName='17' platformBuildVersionCode='37' compileSdkVersion='37' compileSdkVersionCodename='17'
+minSdkVersion:'26'
+targetSdkVersion:'36'
+uses-permission: name='android.permission.VIBRATE'
+uses-permission: name='android.permission.INTERNET'
+uses-permission: name='android.permission.WAKE_LOCK'
+uses-permission: name='android.permission.ACCESS_NETWORK_STATE'
+uses-permission: name='android.permission.RECEIVE_BOOT_COMPLETED'
+uses-permission: name='android.permission.FOREGROUND_SERVICE'
+uses-permission: name='com.doublegate.rustynes.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'
+application-label:'RustyNES'
+application-label-af:'RustyNES'
+application-label-am:'RustyNES'
+application-label-ar:'RustyNES'
+application-label-as:'RustyNES'
+application-label-az:'RustyNES'
+application-label-be:'RustyNES'
+application-label-bg:'RustyNES'
+application-label-bn:'RustyNES'
+application-label-bs:'RustyNES'
+application-label-ca:'RustyNES'
+application-label-cs:'RustyNES'
+application-label-da:'RustyNES'
+application-label-de:'RustyNES'
+application-label-el:'RustyNES'
+application-label-en-AU:'RustyNES'
+application-label-en-CA:'RustyNES'
+application-label-en-GB:'RustyNES'
+application-label-en-IN:'RustyNES'
+application-label-en-XC:'RustyNES'
+application-label-es:'RustyNES'
+application-label-es-US:'RustyNES'
+application-label-et:'RustyNES'
+application-label-eu:'RustyNES'
+application-label-fa:'RustyNES'
+application-label-fi:'RustyNES'
+application-label-fr:'RustyNES'
+application-label-fr-CA:'RustyNES'
+application-label-gl:'RustyNES'
+application-label-gu:'RustyNES'
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::loadLibrary has been called by org.conscrypt.NativeLibraryUtil in an unnamed module (file:/usr/local/lib/android/sdk/build-tools/37.0.0/lib/apksigner.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+Verifies
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): false
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v3.2 scheme (APK Signature Scheme v3.2): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Verified for SourceStamp: false
+Number of signers: 1
+V2 Signer: certificate DN: C=US, O=Android, CN=Android Debug
+V2 Signer: certificate SHA-256 digest: 1639cf4ab984b2669bd1cb2d28dbaa4efdf60be22278b4e7f81c52b84ad7217d
+V2 Signer: certificate SHA-1 digest: b96b969d869e03e2102b4e45b135e828b6c1ee05
+V2 Signer: certificate MD5 digest: dd45e02635346751ac04f112694ea243
+V2 Signer: key algorithm: RSA
+V2 Signer: key size (bits): 2048
+V2 Signer: public key SHA-256 digest: 34a980271dbbb9bbad0c07b11900d8a97bca0c6a5b922f4ecc1272072ec2edb4
+V2 Signer: public key SHA-1 digest: f9abfa748704230d44e212c3a5c08b1537d6e7f4
+V2 Signer: public key MD5 digest: 5147c917bfbe748a8c6fdcc8bcec24fa
+  4170696  1981-01-01 01:01   classes.dex
+     9952  1981-01-01 01:01   lib/arm64-v8a/libandroidx.graphics.path.so
+   176520  1981-01-01 01:01   lib/arm64-v8a/libjnidispatch.so
+ 14450592  1981-01-01 01:01   lib/arm64-v8a/librustynes_android.so
+  7880768  1981-01-01 01:01   lib/arm64-v8a/librustynes_mobile.so
+== out/RustyNES-universal-debug.apk
+package: name='com.doublegate.rustynes.debug' versionCode='30100' versionName='3.1.0' platformBuildVersionName='17' platformBuildVersionCode='37' compileSdkVersion='37' compileSdkVersionCodename='17'
+minSdkVersion:'26'
+targetSdkVersion:'36'
+uses-permission: name='android.permission.VIBRATE'
+uses-permission: name='android.permission.INTERNET'
+uses-permission: name='android.permission.WAKE_LOCK'
+uses-permission: name='android.permission.ACCESS_NETWORK_STATE'
+uses-permission: name='android.permission.RECEIVE_BOOT_COMPLETED'
+uses-permission: name='android.permission.FOREGROUND_SERVICE'
+uses-permission: name='com.doublegate.rustynes.debug.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'
+application-label:'RustyNES'
+application-label-af:'RustyNES'
+application-label-am:'RustyNES'
+application-label-ar:'RustyNES'
+application-label-as:'RustyNES'
+application-label-az:'RustyNES'
+application-label-be:'RustyNES'
+application-label-bg:'RustyNES'
+application-label-bn:'RustyNES'
+application-label-bs:'RustyNES'
+application-label-ca:'RustyNES'
+application-label-cs:'RustyNES'
+application-label-da:'RustyNES'
+application-label-de:'RustyNES'
+application-label-el:'RustyNES'
+application-label-en-AU:'RustyNES'
+application-label-en-CA:'RustyNES'
+application-label-en-GB:'RustyNES'
+application-label-en-IN:'RustyNES'
+application-label-en-XC:'RustyNES'
+application-label-es:'RustyNES'
+application-label-es-US:'RustyNES'
+application-label-et:'RustyNES'
+application-label-eu:'RustyNES'
+application-label-fa:'RustyNES'
+application-label-fi:'RustyNES'
+application-label-fr:'RustyNES'
+application-label-fr-CA:'RustyNES'
+application-label-gl:'RustyNES'
+application-label-gu:'RustyNES'
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::loadLibrary has been called by org.conscrypt.NativeLibraryUtil in an unnamed module (file:/usr/local/lib/android/sdk/build-tools/37.0.0/lib/apksigner.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+Verifies
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): false
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v3.2 scheme (APK Signature Scheme v3.2): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Verified for SourceStamp: false
+Number of signers: 1
+V2 Signer: certificate DN: C=US, O=Android, CN=Android Debug
+V2 Signer: certificate SHA-256 digest: 1639cf4ab984b2669bd1cb2d28dbaa4efdf60be22278b4e7f81c52b84ad7217d
+V2 Signer: certificate SHA-1 digest: b96b969d869e03e2102b4e45b135e828b6c1ee05
+V2 Signer: certificate MD5 digest: dd45e02635346751ac04f112694ea243
+V2 Signer: key algorithm: RSA
+V2 Signer: key size (bits): 2048
+V2 Signer: public key SHA-256 digest: 34a980271dbbb9bbad0c07b11900d8a97bca0c6a5b922f4ecc1272072ec2edb4
+V2 Signer: public key SHA-1 digest: f9abfa748704230d44e212c3a5c08b1537d6e7f4
+V2 Signer: public key MD5 digest: 5147c917bfbe748a8c6fdcc8bcec24fa
+ 41630972  1981-01-01 01:01   classes.dex
+   256312  1981-01-01 01:01   classes2.dex
+  1541128  1981-01-01 01:01   classes3.dex
+   357972  1981-01-01 01:01   classes4.dex
+   119660  1981-01-01 01:01   classes5.dex
+ 16244352  1981-01-01 01:01   classes6.dex
+ 12269372  1981-01-01 01:01   classes7.dex
+   492428  1981-01-01 01:01   classes8.dex
+     9952  1981-01-01 01:01   lib/arm64-v8a/libandroidx.graphics.path.so
+   176520  1981-01-01 01:01   lib/arm64-v8a/libjnidispatch.so
+ 14450592  1981-01-01 01:01   lib/arm64-v8a/librustynes_android.so
+  7880768  1981-01-01 01:01   lib/arm64-v8a/librustynes_mobile.so
+    10104  1981-01-01 01:01   lib/x86_64/libandroidx.graphics.path.so
+   126912  1981-01-01 01:01   lib/x86_64/libjnidispatch.so
+ 14572736  1981-01-01 01:01   lib/x86_64/librustynes_android.so
+  8167664  1981-01-01 01:01   lib/x86_64/librustynes_mobile.so

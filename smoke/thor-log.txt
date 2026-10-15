@@ -1,0 +1,13 @@
+10-15 06:40:32.913  4727  4763 I RustyNES-thor: debug-imported smb1-text-panel
+10-15 06:40:32.981  4727  4763 I RustyNES-thor: debug-imported rustynes-smoke-test
+10-15 06:40:33.408  4727  4727 I RustyNES-thor: bottom screen started on display 2
+10-15 06:40:33.420  4727  4727 I RustyNES-thor: RA status: Logged out
+10-15 06:40:34.581  4727  4727 I RustyNES-thor: RA status: Signing in…
+10-15 06:40:34.709  4727  4727 I RustyNES-thor: RA status: Sign-in failed: Invalid user/password combination. Please try again.
+10-15 06:40:49.080  4727  4727 I RustyNES-thor: snapshot 1240x1080 expansion=rustynes-smoke-test page=expansion rom=autoload running=true installed=[rustynes-smoke-test, smb1-text-panel]
+10-15 06:41:13.692  4727  4727 I RustyNES-thor: snapshot 1240x1080 expansion=rustynes-smoke-test page=expansion rom=autoload running=true installed=[rustynes-smoke-test, smb1-text-panel]
+10-15 06:41:14.322  4727  4727 D RustyNES-thor: panel touch ACTION_DOWN held=0ms
+10-15 06:41:17.322  4727  4727 I RustyNES-thor: menu shown
+10-15 06:41:17.824  4727  4727 D RustyNES-thor: panel touch ACTION_UP held=3500ms
+10-15 06:41:43.687  4727  4727 I RustyNES-thor: snapshot 1240x1080 expansion=rustynes-smoke-test page=home rom=autoload running=true installed=[rustynes-smoke-test, smb1-text-panel]
+10-15 06:41:54.905  4727  4727 I RustyNES-thor: bottom screen started on display 2

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.doublegate.rustynes.SocdTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-15T06:37:41.055Z" hostname="runnervmdkmh8" time="0.012">
+  <properties/>
+  <testcase name="turned_off_every_mask_passes_through" classname="com.doublegate.rustynes.SocdTest" time="0.01"/>
+  <testcase name="default_is_on" classname="com.doublegate.rustynes.SocdTest" time="0.001"/>
+  <testcase name="unopposed_masks_pass_through" classname="com.doublegate.rustynes.SocdTest" time="0.0"/>
+  <testcase name="opposites_never_survive_and_buttons_never_change" classname="com.doublegate.rustynes.SocdTest" time="0.001"/>
+  <testcase name="opposing_directions_cancel_per_axis" classname="com.doublegate.rustynes.SocdTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

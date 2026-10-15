@@ -1,0 +1,7 @@
+commit: bd311c07526f10013e5a27fd82cdf8770ff086c6
+upstream base: 67b2a6b76360113cf122496cc0b8a4d58fbaa122
+rustc 1.99.0 (b940084d7 2026-09-28)
+cargo 1.99.0 (5f94df478 2026-08-27)
+cargo-ndk 4.1.2
+openjdk version "25.0.4.1" 2026-08-18 LTS
+NDK: 30.0.16248370

@@ -1,0 +1,17 @@
+[release] install exit: 0 (com.doublegate.rustynes)
+[release] pid: 6284
+Display #0 (activities from top to bottom):
+    topResumedActivity=ActivityRecord{3e25405 u0 com.doublegate.rustynes/.MainActivity t12}
+    * Hist  #0: ActivityRecord{3e25405 u0 com.doublegate.rustynes/.MainActivity t12}
+    Resumed: ActivityRecord{3e25405 u0 com.doublegate.rustynes/.MainActivity t12}
+Display #2 (activities from top to bottom):
+    topResumedActivity=ActivityRecord{bc06436 u0 com.doublegate.rustynes/.ThorSecondScreenActivity t13}
+    * Hist  #0: ActivityRecord{bc06436 u0 com.doublegate.rustynes/.ThorSecondScreenActivity t13}
+    Resumed: ActivityRecord{bc06436 u0 com.doublegate.rustynes/.ThorSecondScreenActivity t13}
+  ResumedActivity: ActivityRecord{3e25405 u0 com.doublegate.rustynes/.MainActivity t12}
+  deepestLastOrientationSource=ActivityRecord{3e25405 u0 com.doublegate.rustynes/.MainActivity t12}
+  mFocusedApp=ActivityRecord{3e25405 u0 com.doublegate.rustynes/.MainActivity t12}
+        * ActivityRecord{3e25405 u0 com.doublegate.rustynes/.MainActivity t12}
+[release] RESULT: no crash
+[release] RESULT: no ANR
+[release] RESULT: process alive

@@ -1,0 +1,12 @@
+== out/apk-libs/lib/arm64-v8a/libandroidx.graphics.path.so
+out/apk-libs/lib/arm64-v8a/libandroidx.graphics.path.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, for Android 23, built by NDK r27 (12077973), BuildID[sha1]=c33e845872712774256354063517b8473a0c4d77, stripped
+0
+== out/apk-libs/lib/arm64-v8a/libjnidispatch.so
+out/apk-libs/lib/arm64-v8a/libjnidispatch.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, BuildID[sha1]=8549526bbd95df90b51b87eaf518d627a449eb24, not stripped
+0
+== out/apk-libs/lib/arm64-v8a/librustynes_android.so
+out/apk-libs/lib/arm64-v8a/librustynes_android.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, for Android 26, built by NDK r30 (16248370), not stripped
+18
+== out/apk-libs/lib/arm64-v8a/librustynes_mobile.so
+out/apk-libs/lib/arm64-v8a/librustynes_mobile.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, for Android 26, built by NDK r30 (16248370), not stripped
+18

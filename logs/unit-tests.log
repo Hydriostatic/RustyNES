@@ -1,0 +1,57 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.8.0/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+Calculating task graph as no cached configuration is available for tasks: :app:testFossDebugUnitTest
+
+> Task :app:cargoNdkBuild
+    Building arm64-v8a (aarch64-linux-android)
+    Finished `release-mobile` profile [optimized] target(s) in 0.10s
+    Building x86_64 (x86_64-linux-android)
+    Finished `release-mobile` profile [optimized] target(s) in 0.10s
+     Copying libraries to /home/runner/work/RustyNES/RustyNES/android/app/src/main/jniLibs
+
+> Task :app:uniffiBindgen
+> Task :app:preBuild
+> Task :app:preFossDebugBuild
+> Task :app:generateFossDebugBuildConfig UP-TO-DATE
+> Task :app:mapFossDebugSourceSetPaths UP-TO-DATE
+> Task :app:extractFossDebugSupportedLocales UP-TO-DATE
+> Task :app:generateFossDebugResources UP-TO-DATE
+> Task :app:javaPreCompileFossDebug UP-TO-DATE
+> Task :app:createFossDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksFossDebug UP-TO-DATE
+> Task :app:generateFossDebugLocaleConfig UP-TO-DATE
+> Task :app:packageFossDebugResources UP-TO-DATE
+> Task :app:mergeFossDebugResources UP-TO-DATE
+> Task :app:preFossDebugUnitTestBuild
+> Task :app:processFossDebugNavigationResources UP-TO-DATE
+> Task :app:checkFossDebugAarMetadata UP-TO-DATE
+> Task :app:compileFossDebugNavigationResources UP-TO-DATE
+> Task :app:parseFossDebugLocalResources UP-TO-DATE
+> Task :app:generateFossDebugRFile UP-TO-DATE
+> Task :app:processFossDebugMainManifest UP-TO-DATE
+> Task :app:processFossDebugManifest UP-TO-DATE
+> Task :app:processFossDebugManifestForPackage UP-TO-DATE
+> Task :app:javaPreCompileFossDebugUnitTest FROM-CACHE
+> Task :app:processFossDebugResources UP-TO-DATE
+> Task :app:compileFossDebugKotlin UP-TO-DATE
+> Task :app:compileFossDebugJavaWithJavac UP-TO-DATE
+> Task :app:processFossDebugJavaRes UP-TO-DATE
+> Task :app:bundleFossDebugClassesToRuntimeJar
+> Task :app:bundleFossDebugClassesToCompileJar
+> Task :app:compileFossDebugUnitTestKotlin
+> Task :app:compileFossDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processFossDebugUnitTestJavaRes
+> Task :app:testFossDebugUnitTest
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1792046247976.json
+
+[Incubating] Problems report is available at: file:///home/runner/work/RustyNES/RustyNES/android/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.8.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 15s
+30 actionable tasks: 7 executed, 1 from cache, 22 up-to-date
+Configuration cache entry stored.

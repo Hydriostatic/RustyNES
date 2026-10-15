@@ -1,0 +1,26 @@
+  Window #0 Window{7829a24 u0 com.doublegate.rustynes.debug/com.doublegate.rustynes.ThorSecondScreenActivity}:
+    mDisplayId=2 rootTaskId=11 mSession=Session{bfa301 4727:u0a10192} mClient=android.os.BinderProxy@28182b7
+  Window #1 Window{96c2f06 u0 com.doublegate.rustynes.debug/com.doublegate.rustynes.ThorSecondScreenActivity}:
+    mDisplayId=2 rootTaskId=11 mSession=Session{bfa301 4727:u0a10192} mClient=android.os.BinderProxy@2a6b5e1
+  Window #2 Window{d321842 u0 ScreenDecorOverlayBottom}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{51c13ac 829:u0a10168} mClient=android.os.BinderProxy@79e9324
+  Window #3 Window{7329e51 u0 ScreenDecorOverlay}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{51c13ac 829:u0a10168} mClient=android.os.BinderProxy@26af0db
+  Window #4 Window{154a9c4 u0 Overlay #1: 1240x1080, 240 dpi}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{c04db80 517:1000} mClient=android.view.ViewRootImpl$W@2749456
+  Window #5 Window{821f2b u0 NotificationShade}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{51c13ac 829:u0a10168} mClient=android.os.BinderProxy@c772a04
+  Window #6 Window{75a2dc5 u0 StatusBar}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{51c13ac 829:u0a10168} mClient=android.os.BinderProxy@40798fa
+  Window #7 Window{97b516e u0 ShellDropTarget}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{51c13ac 829:u0a10168} mClient=android.os.BinderProxy@a08a89c
+  Window #8 Window{530a746 u0 InputMethod}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{1748cb6 1470:u0a10143} mClient=android.os.BinderProxy@7cce721
+  Window #9 Window{4c5ff83 u0 com.doublegate.rustynes.debug/com.doublegate.rustynes.MainActivity}:
+    mDisplayId=0 rootTaskId=10 mSession=Session{bfa301 4727:u0a10192} mClient=android.os.BinderProxy@fcdb632
+  Window #10 Window{810c2eb u0 com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{b9a8756 1650:u0a10132} mClient=android.os.BinderProxy@3d5463a
+  Window #11 Window{450a4fb u0 com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{3281d74 1087:u0a10169} mClient=android.os.BinderProxy@b1e268a
+  Window #12 Window{3f9f408 u0 com.android.systemui.wallpapers.ImageWallpaper}:
+    mDisplayId=0 rootTaskId=1 mSession=Session{51c13ac 829:u0a10168} mClient=android.os.BinderProxy@ae045ab

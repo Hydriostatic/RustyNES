@@ -1,0 +1,5 @@
+Display #2 (activities from top to bottom):
+    topResumedActivity=ActivityRecord{c1b35ab u0 com.google.android.documentsui/com.android.documentsui.picker.PickActivity t11}
+Display #0 (activities from top to bottom):
+    topResumedActivity=ActivityRecord{7914843 u0 com.doublegate.rustynes.debug/com.doublegate.rustynes.MainActivity t10}
+  ResumedActivity: ActivityRecord{c1b35ab u0 com.google.android.documentsui/com.android.documentsui.picker.PickActivity t11}

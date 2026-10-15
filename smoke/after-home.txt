@@ -1,0 +1,4 @@
+Display #0 (activities from top to bottom):
+      topResumedActivity=ActivityRecord{af8e591 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+Display #2 (activities from top to bottom):
+  ResumedActivity: ActivityRecord{af8e591 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}

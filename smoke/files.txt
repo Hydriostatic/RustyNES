@@ -1,0 +1,13 @@
+/sdcard/Android/data/com.doublegate.rustynes.debug/files:
+total 524
+drwxrws--- 3 u0_a192 ext_data_rw   4096 2026-10-15 06:40 .
+drwxrws--- 3 u0_a192 ext_data_rw   4096 2026-10-15 06:40 ..
+-rw-r--r-- 1 shell   ext_data_rw  40976 2026-10-15 06:38 autoload.nes
+drwxrws--- 2 shell   ext_data_rw   4096 2026-10-15 06:40 expansions
+-rw-rw---- 1 u0_a192 ext_data_rw  79989 2026-10-15 06:40 thor-bottom.png
+-rw-rw---- 1 u0_a192 ext_data_rw 370184 2026-10-15 06:40 thor-menu.png
+
+/sdcard/Android/data/com.doublegate.rustynes.debug/files/expansions:
+total 16
+drwxrws--- 2 shell   ext_data_rw 4096 2026-10-15 06:40 .
+drwxrws--- 3 u0_a192 ext_data_rw 4096 2026-10-15 06:40 ..

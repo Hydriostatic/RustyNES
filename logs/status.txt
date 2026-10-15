@@ -1,0 +1,3 @@
+universal: success
+release arm64: success
+release x86_64+arm64 (smoke only): success

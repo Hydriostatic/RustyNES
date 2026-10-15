@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.doublegate.rustynes.PersistenceTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-15T06:37:40.988Z" hostname="runnervmdkmh8" time="0.039">
+  <properties/>
+  <testcase name="a_late_periodic_flush_does_not_overwrite_the_final_one" classname="com.doublegate.rustynes.PersistenceTest" time="0.015"/>
+  <testcase name="an_interrupted_write_keeps_the_previous_contents" classname="com.doublegate.rustynes.PersistenceTest" time="0.012"/>
+  <testcase name="a_new_battery_save_is_written_on_the_first_change" classname="com.doublegate.rustynes.PersistenceTest" time="0.001"/>
+  <testcase name="a_battery_save_of_the_wrong_size_is_left_untouched" classname="com.doublegate.rustynes.PersistenceTest" time="0.003"/>
+  <testcase name="an_unchanged_battery_save_is_not_rewritten" classname="com.doublegate.rustynes.PersistenceTest" time="0.001"/>
+  <testcase name="a_disabled_battery_saver_never_writes" classname="com.doublegate.rustynes.PersistenceTest" time="0.0"/>
+  <testcase name="a_completed_write_replaces_the_contents" classname="com.doublegate.rustynes.PersistenceTest" time="0.002"/>
+  <testcase name="a_wrong_size_battery_save_is_refused_without_reading_it" classname="com.doublegate.rustynes.PersistenceTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

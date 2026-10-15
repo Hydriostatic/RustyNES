@@ -1,0 +1,15 @@
+  bash arg: -p
+  bash arg: com.doublegate.rustynes.debug
+  bash arg: -c
+  bash arg: android.intent.category.LAUNCHER
+  bash arg: 1
+args: [-p, com.doublegate.rustynes.debug, -c, android.intent.category.LAUNCHER, 1]
+ arg: "-p"
+ arg: "com.doublegate.rustynes.debug"
+ arg: "-c"
+ arg: "android.intent.category.LAUNCHER"
+ arg: "1"
+data="com.doublegate.rustynes.debug"
+data="android.intent.category.LAUNCHER"
+Events injected: 1
+## Network stats: elapsed time=66ms (0ms mobile, 0ms wifi, 66ms not connected)
